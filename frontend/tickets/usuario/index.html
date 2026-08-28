@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tickets Vehiculares AM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT: '#2a5298', dark: '#1e3c72' },
+          accent: '#27ae60'
+        }
+      }
+    }
+  }
+</script>
+<style>
+  @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes bounceIn { 0% { transform: scale(0); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+  .anim-slide-up { animation: slideUp .4s ease-out; }
+  .anim-bounce-in { animation: bounceIn .6s ease-out; }
+</style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-brand-dark to-brand p-5 font-sans text-slate-800">
+  <div class="anim-slide-up mx-auto w-full max-w-lg rounded-2xl bg-white p-10 shadow-2xl">
+
+    <!-- HEADER -->
+    <div class="mb-8 border-b-[3px] border-brand-dark pb-5 text-center">
+      <div class="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-2xl font-bold text-white">T</div>
+      <h1 class="text-2xl font-bold text-brand-dark">Tickets Vehiculares</h1>
+      <p class="text-sm text-slate-500">Grupo AM · Flota</p>
+    </div>
+
+    <!-- MENSAJES -->
+    <div id="successMsg" class="mb-5 hidden rounded-xl border-2 border-emerald-500 bg-emerald-50 p-4 font-medium text-emerald-800"></div>
+    <div id="errorMsg" class="mb-5 hidden rounded-xl border-2 border-red-400 bg-red-50 p-4 font-medium text-red-800"></div>
+
+    <!-- SELECTOR DE INTENCIÓN -->
+    <div id="intentScreen" class="hidden">
+      <p class="mb-6 text-center text-sm text-slate-500">¿Qué necesitas hacer?</p>
+      <button class="mb-3.5 w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('asignacion')">🚗 Pedir un vehículo</button>
+      <button class="w-full rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('reporte')">🎫 Levantar ticket</button>
+    </div>
+
+    <!-- SELECTOR DE VEHÍCULO -->
+    <div id="selectorScreen" class="hidden">
+      <button class="mx-auto mb-5 block text-sm font-semibold text-brand underline" onclick="volverAIntent()">‹ Volver</button>
+      <p class="mb-6 text-center text-sm text-slate-500">Selecciona el vehículo con la incidencia</p>
+
+      <button id="scanBtn" class="w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="iniciarEscaneo()">📷 Escanear QR del vehículo</button>
+
+      <div id="qrReaderContainer" class="mt-4.5 hidden">
+        <div id="qrReader" class="overflow-hidden rounded-xl border-2 border-brand"></div>
+        <button class="mt-3 w-full rounded-xl border-2 border-red-500 bg-white px-3 py-3 text-sm font-semibold text-red-600" onclick="detenerEscaneo()">✖ Cancelar escaneo</button>
+      </div>
+
+      <div class="my-6 flex items-center text-sm text-slate-400">
+        <div class="h-px flex-1 bg-slate-200"></div>
+        <span class="px-3">o selecciona manualmente</span>
+        <div class="h-px flex-1 bg-slate-200"></div>
+      </div>
+
+      <div class="mb-5">
+        <label for="placaSelect" class="mb-2 block text-sm font-semibold text-brand-dark">🚗 Placa del vehículo</label>
+        <select id="placaSelect" onchange="onPlacaSelect(this.value)" class="w-full rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white">
+          <option value="">-- Selecciona una placa --</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <div id="mainContent" class="hidden">
+      <button class="mx-auto mb-5 block text-sm font-semibold text-brand underline" onclick="cambiarVehiculo()">↺ Empezar de nuevo</button>
+
+      <div id="vehicleInfoPanel" class="mb-6 rounded-xl border-l-4 border-brand bg-gradient-to-br from-slate-50 to-blue-50 p-4.5 shadow-sm">
+        <h3 class="mb-3 text-base font-semibold text-brand-dark">📋 Información del Vehículo</h3>
+        <p class="my-1.5 text-[13px] leading-relaxed text-slate-600"><strong class="text-brand-dark">Placa:</strong> <span id="vehiclePlaca">Cargando...</span></p>
+        <p class="my-1.5 text-[13px] leading-relaxed text-slate-600"><strong class="text-brand-dark">Modelo:</strong> <span id="vehicleModel">--</span></p>
+        <p class="my-1.5 text-[13px] leading-relaxed text-slate-600"><strong class="text-brand-dark">Año:</strong> <span id="vehicleYear">--</span></p>
+        <p class="my-1.5 text-[13px] leading-relaxed text-slate-600"><strong class="text-brand-dark">Estado:</strong> <span id="vehicleEstado">--</span></p>
+        <p class="my-1.5 text-[13px] leading-relaxed text-slate-600"><strong class="text-brand-dark">Departamento:</strong> <span id="vehicleDept">--</span></p>
+      </div>
+
+      <div class="mb-5">
+        <label for="nombreSolicitante" class="mb-2 block text-sm font-semibold text-brand-dark">👤 Nombre de quien levanta el ticket</label>
+        <input type="text" id="nombreSolicitante" placeholder="Ej: Juan Pérez" required class="w-full rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10">
+      </div>
+
+      <div class="mb-5">
+        <label for="departamentoSolicitante" class="mb-2 block text-sm font-semibold text-brand-dark">🏢 Departamento</label>
+        <select id="departamentoSolicitante" required class="w-full rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white">
+          <option value="">-- Selecciona un departamento --</option>
+          <option value="AM Digital">AM Digital</option>
+          <option value="Sistemas">Sistemas</option>
+          <option value="Xpress DM">Xpress DM</option>
+          <option value="Redacción AM">Redacción AM</option>
+          <option value="Operaciones">Operaciones</option>
+          <option value="Suscripciones">Suscripciones</option>
+          <option value="Capital Humano">Capital Humano</option>
+          <option value="Mercadotecnia">Mercadotecnia</option>
+          <option value="Publicidad">Publicidad</option>
+          <option value="Cobranza">Cobranza</option>
+          <option value="Contabilidad">Contabilidad</option>
+          <option value="Imprenta">Imprenta</option>
+          <option value="Producción">Producción</option>
+          <option value="Circulación">Circulación</option>
+        </select>
+      </div>
+
+      <div class="mb-5">
+        <label for="numeroNomina" id="labelNomina" class="mb-2 block text-sm font-semibold text-brand-dark">🪪 Número de nómina</label>
+        <input type="text" id="numeroNomina" placeholder="Ej: 12345" class="w-full rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10">
+      </div>
+
+      <div class="mb-5">
+        <label for="correoSolicitante" class="mb-2 block text-sm font-semibold text-brand-dark">📧 Correo electrónico</label>
+        <input type="email" id="correoSolicitante" placeholder="Ej: nombre@am.com.mx" required class="w-full rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10">
+      </div>
+
+      <h2 id="tituloFormulario" class="mb-4.5 hidden text-lg font-bold text-brand-dark"></h2>
+
+      <div id="toggleGroup" class="mb-7 grid grid-cols-2 gap-3">
+        <button id="toggleAsignacion" class="rounded-xl border-2 border-brand-dark bg-gradient-to-br from-brand to-brand-dark px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/30 transition" onclick="toggleType('asignacion')">✅ Asignación</button>
+        <button id="toggleReporte" class="rounded-xl border-2 border-slate-200 bg-white px-4 py-3.5 text-sm font-semibold text-slate-700 transition hover:border-brand" onclick="toggleType('reporte')">⚠️ Reporte</button>
+      </div>
+
+      <div id="formAsignacion" class="mb-5.5">
+        <div class="mb-5">
+          <label for="proposito" class="mb-2 block text-sm font-semibold text-brand-dark">🎯 Propósito / Destino</label>
+          <input type="text" id="proposito" placeholder="Ej: Distribución Centro" required class="w-full rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10">
+        </div>
+      </div>
+
+      <div id="formReporte" class="mb-5.5 hidden">
+        <div class="mb-5">
+          <label for="descripcion" class="mb-2 block text-sm font-semibold text-brand-dark">📝 Descripción del Problema</label>
+          <p class="-mt-1 mb-2 text-xs leading-snug text-slate-400">Sé lo más específico posible: qué notaste o qué pasó, y cuándo — con eso el equipo de flota clasifica y atiende tu reporte.</p>
+          <textarea id="descripcion" placeholder="Ej: El motor no enciende, se escucha un clic pero no arranca. Empezó hoy en la mañana al salir a reparto." required class="min-h-[100px] w-full resize-y rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10"></textarea>
+        </div>
+      </div>
+
+      <button class="w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="submitForm()">✅ Enviar Ticket</button>
+    </div>
+
+    <!-- PANTALLA DE CARGA -->
+    <div id="loadingDiv" class="hidden py-8 text-center">
+      <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-brand"></div>
+      <p class="text-slate-500">Registrando ticket...</p>
+    </div>
+
+    <!-- PANTALLA DE ÉXITO -->
+    <div id="successDiv" class="hidden py-8 text-center">
+      <div class="anim-bounce-in mb-5 text-6xl">✅</div>
+      <h2 id="successTitulo" class="mb-4 text-xl font-bold text-accent">¡Ticket Registrado!</h2>
+      <p id="successTexto" class="mb-4 text-sm text-slate-500">Tu reporte ha sido registrado exitosamente en el sistema.</p>
+      <div class="my-5 rounded-xl border-2 border-brand bg-slate-50 p-5">
+        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-dark">Folio del Ticket</div>
+        <div id="folioDisplay" class="font-mono text-2xl font-bold text-brand">TKT-XXXXX</div>
+      </div>
+      <p class="mt-5 text-[13px] text-slate-500">ℹ️ Guarda este folio para futuros seguimientos</p>
+      <button class="mt-5 w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="location.reload()">↻ Registrar otro</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    const DEPARTMENT_SLUG = "flota";
+
+    let tipoActual = "asignacion";
+    let vehicleData = null;
+    let html5QrCode = null;
+    let modoFlujo = "universal"; // "directo" | "universalReporte" | "universalSolicitud"
+
+    let VEHICULOS = [];
+    let TICKET_TYPE_REPORTE = null;
+    let TICKET_TYPE_ASIGNACION = null;
+
+    const TOGGLE_ACTIVE = ["rounded-xl", "border-2", "border-brand-dark", "bg-gradient-to-br", "from-brand", "to-brand-dark", "px-4", "py-3.5", "text-sm", "font-semibold", "text-white", "shadow-lg", "shadow-brand/30", "transition"];
+    const TOGGLE_INACTIVE = ["rounded-xl", "border-2", "border-slate-200", "bg-white", "px-4", "py-3.5", "text-sm", "font-semibold", "text-slate-700", "transition", "hover:border-brand"];
+
+    function setToggleButtons(activo) {
+      const asignacionBtn = document.getElementById("toggleAsignacion");
+      const reporteBtn = document.getElementById("toggleReporte");
+      asignacionBtn.className = (activo === "asignacion" ? TOGGLE_ACTIVE : TOGGLE_INACTIVE).join(" ");
+      reporteBtn.className = (activo === "reporte" ? TOGGLE_ACTIVE : TOGGLE_INACTIVE).join(" ");
+    }
+
+    async function cargarDatosDepartamento() {
+        const respuesta = await fetch(`/api/departments/${DEPARTMENT_SLUG}`);
+        if (!respuesta.ok) throw new Error("No se pudo cargar la información del departamento");
+        const datos = await respuesta.json();
+
+        VEHICULOS = (datos.entities || []).map(e => ({
+            id: e.id,
+            placa: e.codigo,
+            marca: e.atributos?.marca || "",
+            modelo: e.atributos?.modelo || e.nombre || "",
+            año: e.atributos?.año || "",
+            estado: e.atributos?.estado || "",
+            departamento: e.atributos?.departamento || ""
+        }));
+
+        TICKET_TYPE_REPORTE = (datos.ticket_types || []).find(t => t.name === "Reporte de falla") || null;
+        TICKET_TYPE_ASIGNACION = (datos.ticket_types || []).find(t => t.name === "Solicitud de vehículo") || null;
+    }
+
+    function getPlacaFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("placa");
+    }
+
+    function buscarVehiculoPorPlaca(placa) {
+        const buscada = String(placa).trim().toUpperCase();
+        return VEHICULOS.find(v => v.placa.toUpperCase() === buscada);
+    }
+
+    function poblarSelectPlacas() {
+        const select = document.getElementById("placaSelect");
+        const ordenados = [...VEHICULOS].sort((a, b) => a.placa.localeCompare(b.placa));
+        ordenados.forEach(v => {
+            const option = document.createElement("option");
+            option.value = v.placa;
+            option.textContent = `${v.placa} - ${[v.marca, v.modelo].filter(Boolean).join(" ")}`;
+            select.appendChild(option);
+        });
+    }
+
+    function mostrarSeccionFormulario(tipo) {
+        document.getElementById("formAsignacion").classList.toggle("hidden", tipo !== "asignacion");
+        document.getElementById("formReporte").classList.toggle("hidden", tipo !== "reporte");
+        setToggleButtons(tipo);
+        actualizarCampoNomina(tipo);
+    }
+
+    function actualizarCampoNomina(tipo) {
+        const input = document.getElementById("numeroNomina");
+        const label = document.getElementById("labelNomina");
+        const esObligatoria = tipo === "asignacion";
+        input.required = esObligatoria;
+        label.textContent = esObligatoria ? "🪪 Número de nómina" : "🪪 Número de nómina (opcional)";
+    }
+
+    function mostrarVehiculo(vehicle) {
+        vehicleData = vehicle;
+        document.getElementById("vehiclePlaca").textContent = vehicle.placa;
+        document.getElementById("vehicleModel").textContent = [vehicle.marca, vehicle.modelo].filter(Boolean).join(" ");
+        document.getElementById("vehicleYear").textContent = vehicle.año;
+        document.getElementById("vehicleEstado").textContent = vehicle.estado;
+        document.getElementById("vehicleDept").textContent = vehicle.departamento;
+        document.getElementById("vehicleInfoPanel").classList.remove("hidden");
+
+        history.replaceState(null, "", "?placa=" + encodeURIComponent(vehicle.placa));
+
+        const esDirecto = modoFlujo === "directo";
+        const tituloFormulario = document.getElementById("tituloFormulario");
+        document.getElementById("toggleGroup").classList.toggle("hidden", !esDirecto);
+
+        if (esDirecto) {
+            tituloFormulario.classList.add("hidden");
+            tipoActual = "asignacion";
+            mostrarSeccionFormulario("asignacion");
+        } else {
+            tituloFormulario.textContent = tipoActual === "asignacion" ? "🚗 Pedir un vehículo" : "🎫 Levantar ticket";
+            tituloFormulario.classList.remove("hidden");
+            mostrarSeccionFormulario(tipoActual);
+        }
+
+        document.getElementById("intentScreen").classList.add("hidden");
+        document.getElementById("selectorScreen").classList.add("hidden");
+        document.getElementById("mainContent").classList.remove("hidden");
+    }
+
+    function mostrarSolicitudGenerica() {
+        vehicleData = null;
+        document.getElementById("vehicleInfoPanel").classList.add("hidden");
+        document.getElementById("toggleGroup").classList.add("hidden");
+
+        const tituloFormulario = document.getElementById("tituloFormulario");
+        tituloFormulario.textContent = "🚗 Pedir un vehículo";
+        tituloFormulario.classList.remove("hidden");
+        mostrarSeccionFormulario("asignacion");
+
+        history.replaceState(null, "", window.location.pathname);
+
+        document.getElementById("intentScreen").classList.add("hidden");
+        document.getElementById("selectorScreen").classList.add("hidden");
+        document.getElementById("mainContent").classList.remove("hidden");
+    }
+
+    function elegirIntento(tipo) {
+        tipoActual = tipo;
+        if (tipo === "reporte") {
+            modoFlujo = "universalReporte";
+            document.getElementById("intentScreen").classList.add("hidden");
+            document.getElementById("selectorScreen").classList.remove("hidden");
+        } else {
+            modoFlujo = "universalSolicitud";
+            mostrarSolicitudGenerica();
+        }
+    }
+
+    function volverAIntent() {
+        detenerEscaneo();
+        document.getElementById("selectorScreen").classList.add("hidden");
+        document.getElementById("intentScreen").classList.remove("hidden");
+    }
+
+    function onPlacaSelect(placa) {
+        if (!placa) return;
+        const vehicle = buscarVehiculoPorPlaca(placa);
+        if (vehicle) {
+            mostrarVehiculo(vehicle);
+        } else {
+            showError("Vehículo no encontrado: " + placa);
+        }
+    }
+
+    function extraerPlacaDeTexto(texto) {
+        try {
+            const url = new URL(texto);
+            const placaParam = url.searchParams.get("placa");
+            if (placaParam) return placaParam;
+        } catch (e) {
+            // No es una URL, se usa el texto tal cual
+        }
+        return texto.trim();
+    }
+
+    function iniciarEscaneo() {
+        document.getElementById("qrReaderContainer").classList.remove("hidden");
+        document.getElementById("scanBtn").classList.add("hidden");
+
+        html5QrCode = new Html5Qrcode("qrReader");
+        html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: 230 },
+            (decodedText) => {
+                const placa = extraerPlacaDeTexto(decodedText);
+                detenerEscaneo();
+                const vehicle = buscarVehiculoPorPlaca(placa);
+                if (vehicle) {
+                    mostrarVehiculo(vehicle);
+                } else {
+                    showError("QR no reconocido: " + placa);
+                }
+            },
+            () => { /* errores de lectura por frame, se ignoran */ }
+        ).catch((err) => {
+            showError("No se pudo acceder a la cámara: " + err);
+            document.getElementById("qrReaderContainer").classList.add("hidden");
+            document.getElementById("scanBtn").classList.remove("hidden");
+        });
+    }
+
+    function detenerEscaneo() {
+        document.getElementById("qrReaderContainer").classList.add("hidden");
+        document.getElementById("scanBtn").classList.remove("hidden");
+
+        if (html5QrCode) {
+            const instancia = html5QrCode;
+            html5QrCode = null;
+            instancia.stop().then(() => instancia.clear()).catch(() => {});
+        }
+    }
+
+    function cambiarVehiculo() {
+        detenerEscaneo();
+        vehicleData = null;
+        modoFlujo = "universal";
+        history.replaceState(null, "", window.location.pathname);
+
+        document.getElementById("mainContent").classList.add("hidden");
+        document.getElementById("selectorScreen").classList.add("hidden");
+        document.getElementById("successDiv").classList.add("hidden");
+        document.getElementById("intentScreen").classList.remove("hidden");
+    }
+
+    function toggleType(type) {
+        tipoActual = type;
+        mostrarSeccionFormulario(type);
+    }
+
+    function showMessage(type, message) {
+        const elem = type === "success" ? document.getElementById("successMsg") : document.getElementById("errorMsg");
+        elem.textContent = message;
+        elem.classList.remove("hidden");
+        setTimeout(() => { elem.classList.add("hidden"); }, 5000);
+    }
+
+    function showError(message) { showMessage("error", message); }
+    function showSuccess(message) { showMessage("success", message); }
+
+    function showLoading(show) {
+        document.getElementById("loadingDiv").classList.toggle("hidden", !show);
+        document.getElementById("mainContent").classList.toggle("hidden", show);
+    }
+
+    function showSuccessScreen(folio) {
+        document.getElementById("mainContent").classList.add("hidden");
+        document.getElementById("loadingDiv").classList.add("hidden");
+        document.getElementById("successDiv").classList.remove("hidden");
+        document.getElementById("folioDisplay").textContent = folio;
+
+        const esSolicitud = modoFlujo === "universalSolicitud" || (modoFlujo === "directo" && tipoActual === "asignacion");
+        document.getElementById("successTitulo").textContent = esSolicitud ? "¡Solicitud Registrada!" : "¡Ticket Registrado!";
+        document.getElementById("successTexto").textContent = esSolicitud
+            ? "Tu solicitud de vehículo quedó registrada. El equipo de flota la revisará y te asignará una unidad."
+            : "Tu reporte ha sido registrado exitosamente en el sistema.";
+    }
+
+    async function submitForm() {
+        const esGenerico = modoFlujo === "universalSolicitud";
+
+        if (!esGenerico && !vehicleData && tipoActual !== "asignacion") {
+            showError("Error: Vehículo no cargado");
+            return;
+        }
+
+        const ticketType = tipoActual === "asignacion" ? TICKET_TYPE_ASIGNACION : TICKET_TYPE_REPORTE;
+        if (!ticketType) {
+            showError("El sistema no tiene configurado este tipo de ticket todavía.");
+            return;
+        }
+
+        const nombreSolicitante = document.getElementById("nombreSolicitante").value.trim();
+        const departamentoSolicitante = document.getElementById("departamentoSolicitante").value;
+        const numeroNomina = document.getElementById("numeroNomina").value.trim();
+        const correoSolicitante = document.getElementById("correoSolicitante").value.trim();
+
+        if (!nombreSolicitante || !departamentoSolicitante) {
+            showError("Por favor identifica quién levanta el ticket (nombre y departamento)");
+            return;
+        }
+        if (!correoSolicitante) {
+            showError("El correo electrónico es obligatorio para poder avisarte el estatus de tu ticket");
+            return;
+        }
+        if (tipoActual === "asignacion" && !numeroNomina) {
+            showError("El número de nómina es obligatorio para pedir un vehículo");
+            return;
+        }
+
+        const campos = {
+            departamento_solicitante: departamentoSolicitante,
+            numero_nomina: numeroNomina
+        };
+
+        if (tipoActual === "asignacion") {
+            const proposito = document.getElementById("proposito").value.trim();
+            if (!proposito) { showError("Por favor completa todos los campos"); return; }
+            campos.proposito = proposito;
+        } else {
+            const desc = document.getElementById("descripcion").value.trim();
+            if (!desc) { showError("Por favor describe qué pasó"); return; }
+            campos.descripcion = desc;
+        }
+
+        const payload = {
+            ticket_type_id: ticketType.id,
+            entity_id: (!esGenerico && vehicleData) ? vehicleData.id : null,
+            solicitante_nombre: nombreSolicitante,
+            solicitante_email: correoSolicitante,
+            campos
+        };
+
+        showLoading(true);
+        try {
+            const response = await fetch(`/api/departments/${DEPARTMENT_SLUG}/tickets`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            showLoading(false);
+            if (response.ok) {
+                showSuccessScreen(data.folio);
+            } else {
+                showError("Error: " + (data.detail || "No se pudo registrar"));
+            }
+        } catch (err) {
+            showLoading(false);
+            showError("Error de conexión: " + err.message);
+            console.error(err);
+        }
+    }
+
+    window.onload = async function() {
+        try {
+            await cargarDatosDepartamento();
+        } catch (e) {
+            showError("No se pudo cargar el sistema de tickets: " + e.message);
+            document.getElementById("intentScreen").classList.remove("hidden");
+            return;
+        }
+
+        poblarSelectPlacas();
+
+        const placa = getPlacaFromURL();
+        if (placa) {
+            const vehicle = buscarVehiculoPorPlaca(placa);
+            if (vehicle) {
+                modoFlujo = "directo";
+                mostrarVehiculo(vehicle);
+            } else {
+                showError("Vehículo no encontrado: " + placa);
+                document.getElementById("intentScreen").classList.remove("hidden");
+            }
+        } else {
+            document.getElementById("intentScreen").classList.remove("hidden");
+        }
+    };
+  </script>
+</body>
+</html>
