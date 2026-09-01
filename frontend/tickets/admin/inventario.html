@@ -526,14 +526,7 @@
         doc.setFont(undefined, "normal");
         doc.setFontSize(9);
         const marcaModelo = [a.marca, a.modelo].filter(Boolean).join(" ") || entity.nombre || "";
-        const lineas = [
-          marcaModelo || null,
-          a.tipo ? `Tipo: ${a.tipo}` : null,
-          a.año ? `Año: ${a.año}` : null,
-          a.estado ? `Estado: ${a.estado}` : null,
-          a.departamento ? `Razón social: ${a.departamento}` : null,
-          a.combustible ? `Combustible: ${a.combustible}` : null
-        ].filter(Boolean);
+        const lineas = [marcaModelo || null].filter(Boolean);
         lineas.forEach(linea => {
           doc.text(linea, centroX, textY, { align: "center" });
           textY += 5;
