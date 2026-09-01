@@ -22,9 +22,11 @@ def create_app() -> Flask:
     app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 
     from app.routes.admin import admin_bp
+    from app.routes.global_admin import global_admin_bp
     from app.routes.public import public_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(global_admin_bp)
 
     return app

@@ -45,6 +45,24 @@ def send_ticket_notification(department: dict, ticket: dict) -> None:
     _dispatch(department, to_email, subject, body)
 
 
+def send_status_update_email(department: dict, ticket: dict, estado_anterior: str) -> None:
+    """Avisa al solicitante que su ticket cambió de estado — se dispara en
+    cada cambio, no es opcional como la observación. Solo el estado, sin
+    comentarios ni texto extra."""
+    to_email = ticket.get("solicitante_email")
+    if not to_email:
+        return
+    department_name = (department or {}).get("name") or ""
+    estado_nuevo = ticket.get("estado", "")
+    subject = f"[TicketAM] Tu ticket {ticket.get('folio', '')} cambió a: {estado_nuevo}"
+    body = (
+        f"Hola {ticket.get('solicitante_nombre', '')},\n\n"
+        f"Tu ticket {ticket.get('folio', '')} en {department_name} cambió de estado:\n\n"
+        f"{estado_anterior or '—'} → {estado_nuevo}"
+    )
+    _dispatch(department, to_email, subject, body)
+
+
 def send_observation_email(department: dict, ticket: dict, comentario: str) -> None:
     """Le manda al solicitante la observación que el admin dejó en su ticket
     al atenderlo — para dudas o seguimiento sobre el caso."""

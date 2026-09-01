@@ -11,6 +11,8 @@
     { "src": "/admin/inventario", "dest": "/frontend/tickets/admin/inventario.html" },
     { "src": "/admin/reportes", "dest": "/frontend/tickets/admin/reportes.html" },
     { "src": "/admin/configuracion", "dest": "/frontend/tickets/admin/configuracion.html" },
+    { "src": "/global", "dest": "/frontend/tickets/admin/global-login.html" },
+    { "src": "/global/panel", "dest": "/frontend/tickets/admin/global-panel.html" },
     { "src": "/", "dest": "/frontend/tickets/usuario/index.html" },
     { "src": "/(.*)", "dest": "/frontend/$1" }
   ]

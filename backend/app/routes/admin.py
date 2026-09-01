@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash
 from app import google_oauth
 from app.demo_data import DEMO_ADMIN_PASSCODES, DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_TICKET_EVENTS, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
 from app.extensions import supabase
-from app.mailer import send_observation_email
+from app.mailer import send_observation_email, send_status_update_email
 from app.photos import download_photo
 from app.qr import entity_qr_url, generate_labeled_qr_png
 
@@ -153,6 +153,7 @@ def admin_update_status(ticket_id: str):
             return error("Ticket no encontrado", 404)
         previous = ticket["estado"]
         ticket["estado"] = estado
+        send_status_update_email(DEMO_DEPARTMENT, ticket, previous)
         return jsonify({"ticket": ticket, "event": {"accion": "cambio_estado", "estado_anterior": previous, "estado_nuevo": estado, "comentario": comentario}})
 
     current = supabase.table("tickets").select("estado, department_id").eq("id", ticket_id).single().execute()
@@ -160,6 +161,8 @@ def admin_update_status(ticket_id: str):
         return error("Ticket no encontrado", 404)
     updated = supabase.table("tickets").update({"estado": estado, "resolved_at": now() if estado in {"Resuelto", "Cerrado", "Asignado", "Negado"} else None}).eq("id", ticket_id).execute()
     supabase.table("ticket_events").insert({"ticket_id": ticket_id, "accion": "cambio_estado", "estado_anterior": current.data["estado"], "estado_nuevo": estado, "comentario": comentario}).execute()
+    dept = supabase.table("departments").select("name, google_refresh_token").eq("id", department_id).single().execute()
+    send_status_update_email(dept.data or {}, updated.data[0], current.data["estado"])
     return jsonify({"ticket": updated.data[0], "event": {"accion": "cambio_estado"}})
 
 

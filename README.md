@@ -27,7 +27,8 @@ backend/
     assets/logo-am.png               # logo usado en el QR impreso (copia de frontend/tickets/assets)
     routes/
       public.py                      # /api/departments/* — sin autenticación
-      admin.py                        # /api/admin/* — protegidas por sesión
+      admin.py                        # /api/admin/* — protegidas por sesión de departamento
+      global_admin.py                  # /api/global/* — protegidas por sesión de admin global
 
 frontend/
   tickets/
@@ -40,6 +41,8 @@ frontend/
       inventario.html                 # alta/edición/baja de vehículos y QR -> "/admin/inventario"
       reportes.html                   # tickets + historial por vehículo -> "/admin/reportes"
       configuracion.html              # ajustes del departamento (correo de notificaciones) -> "/admin/configuracion"
+      global-login.html               # contraseña maestra -> "/global"
+      global-panel.html               # todos los departamentos, PIN/reset, alta -> "/global/panel"
     assets/logo-am.png             # logo, ver también backend/app/assets/
 ```
 
@@ -200,9 +203,36 @@ fallan con error controlado — no rompen el resto del panel.
 
 `/admin` muestra una pantalla de bienvenida; al presionar "Ingresar" pide una contraseña de 8 dígitos. Cada departamento tiene la suya (no debe compartirse) y, según cuál se ingrese, el sistema abre el panel de ese departamento — sin necesidad de elegir departamento a mano. El solicitante nunca ve este flujo: solo escanea un QR o entra a `/` para registrar su ticket.
 
+Cada admin de departamento solo ve y toca lo de su propio departamento — todas las rutas
+`/api/admin/*` filtran por `session["department_id"]`, sin excepción, así que aunque haya
+varios "sistemas de tickets" (departamentos) uno nunca puede ver los tickets/vehículos de
+otro. Verificado creando un segundo departamento de prueba: su sesión mostró 0 tickets
+mientras Flota seguía con los suyos, sin cruce de datos.
+
+## Administrador global
+
+Por encima de los admins de cada departamento hay un **Administrador Global**, en
+`/global` — una sola contraseña maestra (`GLOBAL_ADMIN_PASSCODE` en `backend/.env`, **no**
+un PIN de 8 dígitos: usa algo largo y fuerte, es la llave que abre todo) con sesión propia
+(`session["is_global_admin"]`), completamente separada de la sesión de admin de
+departamento. Desde `/global/panel` puede:
+
+- Ver todos los departamentos, con badge de si ya tienen PIN configurado y si tienen
+  cuenta de Google conectada para correo.
+- Ver un resumen agregado (tickets totales/abiertos de todos los departamentos juntos).
+- **Crear un departamento nuevo** ("+ Nuevo departamento": slug, nombre, PIN inicial) — se
+  crea automáticamente con los mismos dos tipos de ticket que Flota (Reporte de falla,
+  Solicitud de vehículo), listo para usarse igual desde el día uno sin tocar SQL.
+- **Resetear el PIN** de cualquier departamento (por si se pierde o se compromete) — sin
+  poder ver el PIN actual de nadie: está hasheado (`werkzeug.security.generate_password_hash`,
+  igual que `scripts/set_passcode.py`), solo se puede regenerar.
+
+Sin `GLOBAL_ADMIN_PASSCODE` configurado, `/global` responde error al iniciar sesión — el
+resto de la app sigue funcionando igual.
+
 ## Despliegue en Vercel
 
-Un solo proyecto de Vercel apuntando a la raíz del repo. `vercel.json` ya define los dos builds (`backend/run.py` como función Python, `frontend/` como sitio estático) y el ruteo entre ambos. Configura en el proyecto las mismas variables de `backend/.env`: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` y `FLASK_SECRET_KEY`.
+Un solo proyecto de Vercel apuntando a la raíz del repo. `vercel.json` ya define los dos builds (`backend/run.py` como función Python, `frontend/` como sitio estático) y el ruteo entre ambos. Configura en el proyecto las mismas variables de `backend/.env`: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `FLASK_SECRET_KEY` y `GLOBAL_ADMIN_PASSCODE` (más `SMTP_*`/`GOOGLE_*` si aplican).
 
 ## API
 
@@ -225,3 +255,7 @@ Un solo proyecto de Vercel apuntando a la raíz del repo. `vercel.json` ya defin
 - `GET /api/admin/entities/{entity_id}/qr` — requiere sesión. Regenera el QR de un vehículo existente como imagen PNG (para reimprimirlo).
 - `DELETE /api/admin/entities/{entity_id}` — requiere sesión. Elimina un vehículo del catálogo.
 - `GET /api/admin/events` — requiere sesión. Eventos (`ticket_events`) de los tickets del departamento de la sesión, opcionalmente filtrados por `?entity_id=` (línea de tiempo por vehículo) y/o `?ticket_id=` (observaciones de un ticket).
+- `POST /api/global/login` / `POST /api/global/logout` / `GET /api/global/me` — sesión de admin global por contraseña maestra (`GLOBAL_ADMIN_PASSCODE`), independiente de las sesiones de departamento.
+- `GET /api/global/departments` — requiere sesión global. Todos los departamentos con estatus de PIN, cuenta de Google conectada y conteo de tickets.
+- `POST /api/global/departments` — requiere sesión global. Crea un departamento nuevo (`slug`, `name`, `passcode` de 8 dígitos) con los tipos de ticket por defecto ya seedeados.
+- `PATCH /api/global/departments/{department_id}/passcode` — requiere sesión global. Resetea el PIN de un departamento (`passcode` de 8 dígitos).

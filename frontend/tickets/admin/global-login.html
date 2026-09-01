@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administrador Global | TicketAM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT: '#2a5298', dark: '#1e3c72' },
+          accent: '#27ae60'
+        }
+      }
+    }
+  }
+</script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-800 to-slate-950 font-sans text-slate-800">
+
+  <div class="flex min-h-screen items-center justify-center p-5">
+    <div class="w-full max-w-md rounded-2xl bg-white p-10 text-center shadow-2xl">
+      <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-2xl text-white">🛡️</div>
+      <h1 class="mb-2 text-xl font-bold text-brand-dark">Administrador Global</h1>
+      <p class="mb-7 text-sm leading-relaxed text-slate-500">Acceso restringido — ve y administra todos los sistemas de tickets. No es la contraseña de ningún departamento.</p>
+      <div id="gateError" class="mb-4 hidden rounded-xl border-2 border-red-400 bg-red-50 px-3 py-3 text-sm font-semibold text-red-800"></div>
+      <input id="passcodeInput" class="mb-4 w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-4 text-center font-mono text-lg outline-none focus:border-brand focus:bg-white" type="password" placeholder="Contraseña maestra" autocomplete="off">
+      <button class="w-full rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 px-4 py-4 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5" onclick="login()">Entrar</button>
+      <a href="/admin" class="mt-5 block text-sm font-semibold text-brand underline">‹ Soy admin de un departamento</a>
+    </div>
+  </div>
+
+<script>
+  function gateError(msg) {
+    const el = document.getElementById("gateError");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+
+  async function login() {
+    const passcode = document.getElementById("passcodeInput").value.trim();
+    if (!passcode) { gateError("Ingresa la contraseña"); return; }
+    const response = await fetch("/api/global/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passcode })
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      gateError(data.detail || "Contraseña incorrecta");
+      return;
+    }
+    location.href = "/global/panel";
+  }
+
+  document.getElementById("passcodeInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") login();
+  });
+
+  (async function checkSession() {
+    const response = await fetch("/api/global/me");
+    if (response.ok) location.href = "/global/panel";
+  })();
+</script>
+</body>
+</html>
