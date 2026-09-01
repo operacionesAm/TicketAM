@@ -13,7 +13,7 @@ from urllib.parse import quote
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
 
-COLOR_MARCA = "#1e3c72"
+COLOR_MARCA = "#000000"
 
 # Ancho fijo del QR etiquetado (px). El QR natural que arma `qrcode` sale muy
 # chico para dejarle espacio decente al logo y al texto de la leyenda, así
