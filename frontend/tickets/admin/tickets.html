@@ -69,9 +69,13 @@
 
       <div id="detailVehiculoWrap" class="mb-5 hidden">
         <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Vehículo asignado</label>
-        <select id="detailVehiculoSelect" class="w-full rounded-lg border-2 border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand" onchange="assignVehiculo(detailTicketId, this.value)">
-          <option value="">Sin asignar</option>
-        </select>
+        <div class="flex flex-wrap gap-2">
+          <select id="detailVehiculoSelect" class="min-w-[12rem] flex-1 rounded-lg border-2 border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand">
+            <option value="">-- Elige un vehículo --</option>
+          </select>
+          <button class="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700" onclick="confirmarAsignacion()">Asignar</button>
+          <button class="rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white hover:bg-red-600" onclick="negarVehiculo()">✕ Negar</button>
+        </div>
         <p class="mt-1 text-xs text-slate-400">Al asignar una unidad el ticket pasa a "Asignado" y se notifica por correo al solicitante.</p>
       </div>
 
@@ -221,6 +225,30 @@
     }
     render();
     if (detailTicketId === ticketId) openDetail(ticketId);
+  }
+
+  function confirmarAsignacion() {
+    if (!detailTicketId) return;
+    const entityId = document.getElementById("detailVehiculoSelect").value;
+    if (!entityId) { alert("Elige un vehículo primero."); return; }
+    assignVehiculo(detailTicketId, entityId);
+  }
+
+  async function negarVehiculo() {
+    if (!detailTicketId) return;
+    if (!confirm("¿Negar esta solicitud de vehículo?")) return;
+    const ticket = allTickets.find(t => t.id === detailTicketId);
+    if (!ticket) return;
+    const response = await fetch(`/api/admin/tickets/${detailTicketId}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ estado: "Negado", comentario: "" })
+    });
+    if (!response.ok) { alert("No se pudo negar la solicitud."); return; }
+    const data = await response.json();
+    Object.assign(ticket, data.ticket);
+    render();
+    if (detailTicketId === ticket.id) openDetail(ticket.id);
   }
 
   function fotoBadgeHtml(ticket) {
@@ -538,7 +566,7 @@
 
     const vehiculoWrap = document.getElementById("detailVehiculoWrap");
     if (isAsignacionTicket(ticket)) {
-      document.getElementById("detailVehiculoSelect").innerHTML = `<option value="">Sin asignar</option>${vehiculoOptionsHtml(ticket.entity_id)}`;
+      document.getElementById("detailVehiculoSelect").innerHTML = `<option value="">-- Elige un vehículo --</option>${vehiculoOptionsHtml(ticket.entity_id)}`;
       vehiculoWrap.classList.remove("hidden");
     } else {
       vehiculoWrap.classList.add("hidden");
