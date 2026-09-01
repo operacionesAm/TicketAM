@@ -31,6 +31,7 @@
       <div class="flex gap-2">
         <button id="viewBtnKanban" onclick="switchView('kanban')">🗂️ Kanban</button>
         <button id="viewBtnLista" onclick="switchView('lista')">📃 Lista</button>
+        <button id="viewBtnArchivo" onclick="switchView('archivo')">🗄️ Archivo</button>
       </div>
     </div>
 
@@ -39,6 +40,11 @@
     <div id="listView" class="hidden">
       <div id="statusFilterBar" class="mb-4 flex flex-wrap gap-2"></div>
       <div id="ticketList" class="space-y-2.5"></div>
+    </div>
+
+    <div id="archiveView" class="hidden">
+      <p class="mb-4 text-sm text-slate-500">Tickets Resuelto/Cerrado (o Asignado/Negado) desde hace más de 5 días — se mueven aquí para mantener limpio el panel principal, pero quedan disponibles como historial.</p>
+      <div id="archiveList" class="space-y-2.5"></div>
     </div>
   </div>
 
@@ -109,6 +115,15 @@
     "Baja": "bg-slate-200 text-slate-600"
   };
 
+  const ESTADOS_FINALES = new Set(["Resuelto", "Cerrado", "Asignado", "Negado"]);
+  const DIAS_PARA_ARCHIVAR = 5;
+
+  function isArchived(ticket) {
+    if (!ESTADOS_FINALES.has(ticket.estado) || !ticket.resolved_at) return false;
+    const dias = (Date.now() - new Date(ticket.resolved_at).getTime()) / 86400000;
+    return dias > DIAS_PARA_ARCHIVAR;
+  }
+
   async function loadTickets() {
     const [ticketsRes, entitiesRes] = await Promise.all([
       fetch("/api/admin/tickets"),
@@ -154,8 +169,10 @@
     currentView = view;
     document.getElementById("viewBtnKanban").className = (view === "kanban" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
     document.getElementById("viewBtnLista").className = (view === "lista" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
+    document.getElementById("viewBtnArchivo").className = (view === "archivo" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
     document.getElementById("kanbanBoard").classList.toggle("hidden", view !== "kanban");
     document.getElementById("listView").classList.toggle("hidden", view !== "lista");
+    document.getElementById("archiveView").classList.toggle("hidden", view !== "archivo");
     render();
   }
 
@@ -167,8 +184,10 @@
   function render() {
     if (currentView === "kanban") {
       renderBoard();
-    } else {
+    } else if (currentView === "lista") {
       renderList();
+    } else {
+      renderArchive();
     }
   }
 
@@ -179,7 +198,7 @@
       board.innerHTML = '<div class="py-16 text-center text-slate-400">Este departamento todavía no tiene configurado este tipo de ticket.</div>';
       return;
     }
-    const filtered = allTickets.filter(t => t.ticket_type_id === type.id);
+    const filtered = allTickets.filter(t => t.ticket_type_id === type.id && !isArchived(t));
     board.innerHTML = type.estados.map(estado => {
       const cards = filtered.filter(t => t.estado === estado);
       return `
@@ -279,7 +298,7 @@
       return;
     }
 
-    const filtered = allTickets.filter(t => t.ticket_type_id === type.id);
+    const filtered = allTickets.filter(t => t.ticket_type_id === type.id && !isArchived(t));
     const filters = ["Todos", ...type.estados];
     filterBar.innerHTML = filters.map(estado => {
       const count = estado === "Todos" ? filtered.length : filtered.filter(t => t.estado === estado).length;
@@ -323,6 +342,46 @@
             ${estados.map(estado => `<option value="${estado}" ${ticket.estado === estado ? "selected" : ""}>${estado}</option>`).join("")}
           </select>
         </div>
+      </div>
+    `;
+  }
+
+  function renderArchive() {
+    const type = currentType();
+    const list = document.getElementById("archiveList");
+    if (!type) {
+      list.innerHTML = '<div class="py-16 text-center text-slate-400">Este departamento todavía no tiene configurado este tipo de ticket.</div>';
+      return;
+    }
+    const archived = allTickets
+      .filter(t => t.ticket_type_id === type.id && isArchived(t))
+      .slice()
+      .sort((a, b) => new Date(b.resolved_at) - new Date(a.resolved_at));
+
+    if (!archived.length) {
+      list.innerHTML = '<div class="py-16 text-center text-slate-400">Sin tickets archivados todavía.</div>';
+      return;
+    }
+    list.innerHTML = archived.map(renderArchiveRow).join("");
+  }
+
+  function renderArchiveRow(ticket) {
+    const campos = ticket.campos || {};
+    const resumen = campos.descripcion || campos.proposito || "";
+    const diasArchivado = Math.floor((Date.now() - new Date(ticket.resolved_at).getTime()) / 86400000);
+    return `
+      <div class="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3.5 opacity-80 shadow-sm sm:flex-nowrap">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="font-mono text-[11px] font-bold text-slate-400">${ticket.folio}</span>
+            <span class="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">${ticket.estado}</span>
+          </div>
+          <div class="mt-1 text-sm font-bold text-brand-dark">${ticket.solicitante_nombre}</div>
+          <div class="mt-1 truncate text-xs text-slate-500">${resumen}</div>
+          <div class="mt-1.5 flex items-center gap-1.5">${vehiculoBadgeHtml(ticket)}</div>
+          <div class="mt-1 text-[11px] text-slate-400">Resuelto el ${formatDate(ticket.resolved_at)} · archivado hace ${diasArchivado} días</div>
+        </div>
+        <button class="shrink-0 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-brand hover:bg-slate-50" onclick="openDetail('${ticket.id}')">Ver detalle</button>
       </div>
     `;
   }

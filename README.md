@@ -54,6 +54,12 @@ estadísticas de tiempo de solución e historial de eventos de un vehículo, pen
 detectar unidades con desgaste o fallas recurrentes). El Kanban de Tickets y Configuración
 viven como secciones hermanas en la barra de navegación superior.
 
+En Tickets, además del toggle Kanban/Lista hay una tercera vista, **Archivo**: un ticket en
+un estado final (Resuelto, Cerrado, Asignado o Negado) sale de Kanban/Lista automáticamente
+5 días después de resuelto (`resolved_at`) y pasa a Archivo — mantiene el panel principal
+enfocado en lo activo sin perder el historial (nada se borra; es solo un filtro por fecha,
+calculado en el navegador, sin columna ni job nuevo).
+
 ## Arranque local
 
 La forma que refleja exactamente el ruteo de producción (un solo origen) es la CLI de Vercel:
