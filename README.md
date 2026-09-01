@@ -20,6 +20,8 @@ backend/
     __init__.py                    # create_app(): API pura, registra los blueprints
     extensions.py                  # cliente de Supabase (service role key)
     demo_data.py                    # datos de ejemplo cuando no hay Supabase configurado
+    mailer.py                       # notificaciones por correo (SMTP y/o Google conectado)
+    google_oauth.py                  # "Conectar con Google" — enviar como una cuenta @am.com.mx real
     qr.py                           # genera el QR de cada vehículo (con logo y leyenda)
     assets/logo-am.png               # logo usado en el QR impreso (copia de frontend/tickets/assets)
     routes/
@@ -29,16 +31,28 @@ backend/
 frontend/
   tickets/
     usuario/index.html             # página del solicitante (QR / liga pública) -> "/"
-    admin/                         # panel de administrador, en reestructuración a varias
-                                    # pantallas (Tickets / Dashboard / Inventario); por ahora
-                                    # "tickets.html" sigue siendo el panel completo -> "/admin"
+    admin/                         # panel de administrador, dividido en varias pantallas
+      admin-shared.js                 # sesión, barra de navegación, utilidades y picker de vehículo compartidos
+      login.html                      # bienvenida + contraseña -> "/admin"
+      dashboard.html                  # pantalla principal: alertas, gráficas (Chart.js) y accesos -> "/admin/dashboard"
+      tickets.html                    # kanban de tickets (arrastrar entre estados) -> "/admin/tickets"
+      inventario.html                 # alta/edición/baja de vehículos y QR -> "/admin/inventario"
+      reportes.html                   # tickets + historial por vehículo -> "/admin/reportes"
+      configuracion.html              # ajustes del departamento (correo de notificaciones) -> "/admin/configuracion"
     assets/logo-am.png             # logo, ver también backend/app/assets/
 ```
 
-> Nota (en progreso): el panel de admin se está dividiendo de una sola página con tabs a
-> varias pantallas navegables (`/admin/tickets`, `/admin/dashboard`, `/admin/inventario`).
-> Mientras tanto, `/admin` sigue sirviendo el panel completo de siempre desde su nueva
-> ubicación en `frontend/tickets/admin/tickets.html`.
+Tras iniciar sesión en `/admin`, el Dashboard es la pantalla principal: KPIs (total de
+tickets, abiertos, en proceso, resueltos, promedio de días de solución, antigüedad del
+ticket más viejo abierto), alertas de atención urgente (prioridad Alta abiertos, reportes
+sin clasificar, tickets abiertos hace más de 5 días), gráficas (tickets por tipo de
+incidente, estado del inventario) y tablas de distribución (por tipo de ticket, por
+estado) — todo calculado en vivo sobre los tickets/vehículos del departamento. Debajo,
+accesos a Inventario de unidades y Reportes individuales. Toda alta, edición o baja de
+vehículos vive en Inventario — Reportes individuales es de solo lectura (tickets,
+estadísticas de tiempo de solución e historial de eventos de un vehículo, pensado para
+detectar unidades con desgaste o fallas recurrentes). El Kanban de Tickets y Configuración
+viven como secciones hermanas en la barra de navegación superior.
 
 ## Arranque local
 
@@ -73,6 +87,82 @@ Esto levanta la API en `http://127.0.0.1:5000`. Sin credenciales de Supabase cor
 5. Fija la contraseña de administrador de cada departamento (8 dígitos): desde `backend/`, `python scripts/set_passcode.py flota 12345678`.
 6. Si tienes un inventario de vehículos en `vehiculos.json` (raíz del repo, con `placa`, `marca`, `modelo`, `tipo`, `año`, `estado`, `departamento`, `combustible`), impórtalo con `python scripts/import_vehiculos.py` — es idempotente, seguro de correr varias veces.
 
+## Notificaciones por correo
+
+Cuando llega un ticket nuevo, el backend puede avisar por correo al departamento
+(`backend/app/mailer.py`, SMTP estándar — sirve cualquier proveedor: Gmail con
+contraseña de aplicación, Outlook, Zoho, un SMTP corporativo). Sin las variables
+`SMTP_*` configuradas en `backend/.env`, el envío simplemente se omite; el resto de
+la app sigue funcionando igual.
+
+1. Define en `backend/.env`: `SMTP_HOST`, `SMTP_PORT` (587 por defecto), `SMTP_USER`,
+   `SMTP_PASSWORD` y opcionalmente `SMTP_FROM` (si no se define, usa `SMTP_USER`).
+2. Cada departamento captura su correo de aviso desde el panel, en
+   `/admin/configuracion` (se guarda en `departments.notification_email`, columna
+   que ya trae `schema.sql`).
+3. El aviso se dispara desde `POST /api/departments/{slug}/tickets` — el mismo punto
+   donde ya se crea el ticket y su evento `creado`.
+
+Además, desde el detalle de un ticket (botón "Ver detalle" en Tickets, Kanban o Lista)
+el admin puede dejar **observaciones** con la opción de enviarlas por correo al
+`solicitante_email` del ticket — pensado para dudas o seguimiento puntual sobre un
+caso ya en curso, separado del aviso de "ticket nuevo".
+
+### Enviar como una cuenta real de Google ("Conectar con Google")
+
+Para dominios de Google Workspace donde Sistemas bloquea las contraseñas de
+aplicación (`app/google_oauth.py`), el admin conecta su cuenta real
+(`admin@am.com.mx`, por ejemplo) una sola vez desde **`/admin/configuracion`** y
+desde ahí se mandan todos los correos del departamento — sin volver a pedir
+login. Si un departamento tiene cuenta de Google conectada, `mailer.py` la usa
+antes que SMTP; si no, cae a SMTP; si ninguna está configurada, no envía nada.
+
+Alguien con acceso al **Google Cloud Console** de la organización (normalmente
+Sistemas) tiene que crear las credenciales una sola vez:
+
+1. Ve a [console.cloud.google.com](https://console.cloud.google.com) y crea un
+   proyecto (o usa uno existente).
+2. **APIs y servicios → Biblioteca** → busca "Gmail API" → **Habilitar**.
+3. **APIs y servicios → Pantalla de consentimiento OAuth**:
+   - Tipo de usuario: **Interno** (restringe el login a cuentas @am.com.mx y
+     evita el proceso de verificación pública de Google).
+   - Agrega el scope `https://www.googleapis.com/auth/gmail.send` (y
+     `userinfo.email`/`openid`, que ya vienen por defecto).
+4. **APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth**:
+   - Tipo: **Aplicación web**.
+   - **URI de redirección autorizados**: agrega exactamente
+     `https://tu-dominio.vercel.app/api/admin/google/callback` (producción) y,
+     si vas a probar en local, `http://127.0.0.1:5000/api/admin/google/callback`.
+5. Copia el **Client ID** y **Client secret** a `backend/.env` (y a las variables
+   de entorno del proyecto en Vercel):
+   ```
+   GOOGLE_CLIENT_ID=...
+   GOOGLE_CLIENT_SECRET=...
+   GOOGLE_REDIRECT_URI=https://tu-dominio.vercel.app/api/admin/google/callback
+   ```
+6. En el panel, `/admin/configuracion` → botón **"Conectar con Google"** → el
+   admin de flota inicia sesión con su cuenta @am.com.mx y autoriza el envío.
+   Puede desconectarla en cualquier momento desde la misma pantalla.
+
+Sin estas tres variables, el botón "Conectar con Google" responde con un error
+controlado (no rompe el resto del panel) — mientras tanto, SMTP sigue
+disponible como alternativa.
+
+## Migraciones pendientes (si tu Supabase ya existía antes de este cambio)
+
+`schema.sql` ya trae estas columnas para instalaciones nuevas. Si tu proyecto de
+Supabase ya existía, corre esto una vez en el **SQL Editor**:
+
+```sql
+alter table departments add column if not exists notification_email text;
+alter table departments add column if not exists google_refresh_token text;
+alter table departments add column if not exists google_connected_email text;
+alter table tickets add column if not exists responsable_nombre text;
+```
+
+Sin estas, "Responsable", el correo de notificaciones y "Conectar con Google"
+fallan con error controlado — no rompen el resto del panel.
+
 ## Acceso de administrador
 
 `/admin` muestra una pantalla de bienvenida; al presionar "Ingresar" pide una contraseña de 8 dígitos. Cada departamento tiene la suya (no debe compartirse) y, según cuál se ingrese, el sistema abre el panel de ese departamento — sin necesidad de elegir departamento a mano. El solicitante nunca ve este flujo: solo escanea un QR o entra a `/` para registrar su ticket.
@@ -87,10 +177,17 @@ Un solo proyecto de Vercel apuntando a la raíz del repo. `vercel.json` ya defin
 - `POST /api/departments/{slug}/tickets` — público. Crea un ticket y su evento `creado`.
 - `POST /api/admin/login` / `POST /api/admin/logout` / `GET /api/admin/me` — sesión de administrador por contraseña.
 - `GET /api/admin/tickets` — requiere sesión. Tickets del departamento de la sesión activa.
+- `PATCH /api/admin/tickets/{ticket_id}/classify` — requiere sesión. Clasifica un ticket de tipo "Reporte de falla" (`incidente_tipo`, `prioridad`).
 - `PATCH /api/admin/tickets/{ticket_id}/status` — requiere sesión. Cambia el estado y registra el evento; solo sobre tickets del propio departamento.
+- `PATCH /api/admin/tickets/{ticket_id}/responsable` — requiere sesión. Asigna `responsable_nombre` (texto libre) y registra el evento.
+- `POST /api/admin/tickets/{ticket_id}/observaciones` — requiere sesión. Agrega una observación (evento `ticket_events` con `accion=observacion`); si `notificar_email` es `true`, se la envía por correo a `solicitante_email`.
+- `GET /api/admin/settings` / `PATCH /api/admin/settings` — requiere sesión. Lee/actualiza `notification_email` del departamento de la sesión (la lectura también regresa `google_connected_email`, si hay cuenta de Google conectada).
+- `GET /api/admin/google/connect` — requiere sesión. Redirige a Google para autorizar el envío de correo como esa cuenta.
+- `GET /api/admin/google/callback` — Google redirige aquí tras el consentimiento; guarda el refresh token y regresa a `/admin/configuracion`.
+- `POST /api/admin/google/disconnect` — requiere sesión. Olvida la cuenta de Google conectada del departamento.
 - `GET /api/admin/entities` — requiere sesión. Catálogo completo de vehículos (u otras entidades) del departamento.
 - `POST /api/admin/entities` — requiere sesión. Da de alta un vehículo (`codigo`, `nombre`, `atributos`) y genera su QR (`qr_base64` en la respuesta, con logo y leyenda de placa/modelo) — el QR codifica una liga directa a `/?placa=...` en el frontend público.
 - `PATCH /api/admin/entities/{entity_id}` — requiere sesión. Edita `codigo`, `nombre` y/o `atributos` (merge parcial) de un vehículo existente. Cambiar la placa invalida cualquier QR ya impreso con la placa anterior.
 - `GET /api/admin/entities/{entity_id}/qr` — requiere sesión. Regenera el QR de un vehículo existente como imagen PNG (para reimprimirlo).
 - `DELETE /api/admin/entities/{entity_id}` — requiere sesión. Elimina un vehículo del catálogo.
-- `GET /api/admin/events` — requiere sesión. Eventos (`ticket_events`) de los tickets del departamento de la sesión, opcionalmente filtrados por `?entity_id=` — usado para la línea de tiempo por vehículo.
+- `GET /api/admin/events` — requiere sesión. Eventos (`ticket_events`) de los tickets del departamento de la sesión, opcionalmente filtrados por `?entity_id=` (línea de tiempo por vehículo) y/o `?ticket_id=` (observaciones de un ticket).

@@ -12,6 +12,7 @@ from flask import Blueprint, jsonify, request
 
 from app.demo_data import DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
 from app.extensions import supabase
+from app.mailer import send_ticket_notification
 
 public_bp = Blueprint("public", __name__)
 
@@ -79,9 +80,10 @@ def create_ticket(slug: str):
             "campos": campos,
         }
         DEMO_TICKETS.insert(0, ticket)
+        send_ticket_notification(DEMO_DEPARTMENT, ticket)
         return jsonify(ticket), 201
 
-    department_result = supabase.table("departments").select("id").eq("slug", slug).single().execute()
+    department_result = supabase.table("departments").select("id, name, notification_email, google_refresh_token").eq("slug", slug).single().execute()
     if not department_result.data:
         return error("Departamento no encontrado", 404)
     record = {
@@ -98,4 +100,5 @@ def create_ticket(slug: str):
         return error("No se pudo crear el ticket", 400)
     ticket = result.data[0]
     supabase.table("ticket_events").insert({"ticket_id": ticket["id"], "accion": "creado", "estado_nuevo": "Abierto"}).execute()
+    send_ticket_notification(department_result.data, ticket)
     return jsonify(ticket), 201

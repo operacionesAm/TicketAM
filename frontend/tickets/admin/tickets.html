@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Panel Administrador | TicketAM</title>
+<title>Tickets | TicketAM</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -17,135 +17,83 @@
     }
   }
 </script>
-<style>
-  @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-  .anim-slide-up { animation: slideUp .4s ease-out; }
-</style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-brand-dark to-brand font-sans text-slate-800">
+<body class="min-h-screen bg-slate-100 font-sans text-slate-800">
 
-  <!-- BIENVENIDA -->
-  <div id="welcomeScreen" class="min-h-screen flex items-center justify-center p-5">
-    <div class="anim-slide-up w-full max-w-md rounded-2xl bg-white p-10 text-center shadow-2xl">
-      <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-2xl font-bold text-white">T</div>
-      <h1 class="mb-2 text-xl font-bold text-brand-dark">Panel de Administrador</h1>
-      <p class="mb-7 text-sm leading-relaxed text-slate-500">Acceso exclusivo para el equipo que gestiona los tickets de este departamento.</p>
-      <button class="w-full rounded-xl bg-gradient-to-br from-brand to-brand-dark px-4 py-4 text-sm font-bold text-white shadow-lg shadow-brand/30 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="showPasscode()">Ingresar</button>
+  <div id="adminNav"></div>
+
+  <div class="mx-auto max-w-5xl px-5 py-6 pb-16">
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex gap-2">
+        <button id="typeBtnReporte" onclick="switchTicketType('reporte')">🎫 Reportes</button>
+        <button id="typeBtnAsignacion" onclick="switchTicketType('asignacion')">🚗 Asignaciones</button>
+      </div>
+      <div class="flex gap-2">
+        <button id="viewBtnKanban" onclick="switchView('kanban')">🗂️ Kanban</button>
+        <button id="viewBtnLista" onclick="switchView('lista')">📃 Lista</button>
+      </div>
+    </div>
+
+    <div id="kanbanBoard" class="flex snap-x snap-mandatory items-start gap-4 overflow-x-auto pb-4 sm:snap-none"></div>
+
+    <div id="listView" class="hidden">
+      <div id="statusFilterBar" class="mb-4 flex flex-wrap gap-2"></div>
+      <div id="ticketList" class="space-y-2.5"></div>
     </div>
   </div>
 
-  <!-- CONTRASEÑA -->
-  <div id="passcodeScreen" class="hidden min-h-screen items-center justify-center p-5">
-    <div class="anim-slide-up w-full max-w-md rounded-2xl bg-white p-10 text-center shadow-2xl">
-      <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-2xl text-white">🔒</div>
-      <h1 class="mb-2 text-xl font-bold text-brand-dark">Contraseña de administrador</h1>
-      <p class="mb-7 text-sm leading-relaxed text-slate-500">Ingresa tu contraseña de 8 dígitos.</p>
-      <div id="gateError" class="mb-4 hidden rounded-xl border-2 border-red-400 bg-red-50 px-3 py-3 text-sm font-semibold text-red-800"></div>
-      <input id="passcodeInput" class="mb-2 w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-4 text-center font-mono text-2xl tracking-[0.5em] outline-none focus:border-brand focus:bg-white" type="password" inputmode="numeric" maxlength="8" placeholder="········" autocomplete="off">
-      <p class="mb-6 text-xs text-slate-400">No compartas esta contraseña con nadie.</p>
-      <button class="w-full rounded-xl bg-gradient-to-br from-brand to-brand-dark px-4 py-4 text-sm font-bold text-white shadow-lg shadow-brand/30 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="login()">Entrar</button>
-      <button class="mt-4 text-sm font-semibold text-brand underline" onclick="showWelcome()">‹ Volver</button>
-    </div>
-  </div>
+  <!-- MODAL DETALLE -->
+  <div id="detailModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 p-5">
+    <div class="my-8 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+      <div class="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <div id="detailFolio" class="font-mono text-sm font-bold text-slate-400"></div>
+          <h3 id="detailPlaca" class="text-lg font-bold text-brand-dark"></h3>
+        </div>
+        <button class="text-2xl leading-none text-slate-400 hover:text-slate-600" onclick="closeDetail()">&times;</button>
+      </div>
 
-  <!-- PANEL -->
-  <div id="panelScreen" class="hidden min-h-screen bg-slate-100">
-    <div class="flex items-center justify-between bg-gradient-to-br from-brand-dark to-brand px-6 py-5 text-white">
+      <div id="detailInfo" class="mb-5 grid grid-cols-2 gap-x-4 gap-y-2 text-sm"></div>
+
+      <div class="mb-5">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Responsable</label>
+        <div class="flex gap-2">
+          <input id="detailResponsable" type="text" placeholder="Nombre de quien atiende el ticket" class="flex-1 rounded-lg border-2 border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand">
+          <button class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-dark" onclick="saveResponsable()">Guardar</button>
+        </div>
+      </div>
+
       <div>
-        <h2 id="deptName" class="text-lg font-bold">Panel</h2>
-        <div id="deptSlug" class="mt-0.5 text-xs text-blue-200"></div>
-      </div>
-      <button class="rounded-lg border border-white/30 bg-white/15 px-4 py-2 text-sm font-semibold transition hover:bg-white/25" onclick="logout()">Cerrar sesión</button>
-    </div>
-
-    <div class="mx-auto flex max-w-5xl gap-2 px-5 pt-5">
-      <button id="tabBtnTickets" class="rounded-lg px-4 py-2 text-sm font-semibold" onclick="switchTab('tickets')">Tickets</button>
-      <button id="tabBtnVehiculos" class="rounded-lg px-4 py-2 text-sm font-semibold" onclick="switchTab('vehiculos')">Vehículos</button>
-    </div>
-
-    <div class="mx-auto max-w-5xl px-5 py-6 pb-16">
-
-      <!-- TAB: TICKETS -->
-      <div id="ticketsTab">
-        <div class="mb-5 flex gap-2">
-          <button id="typeBtnReporte" onclick="switchTicketType('reporte')">🎫 Reportes</button>
-          <button id="typeBtnAsignacion" onclick="switchTicketType('asignacion')">🚗 Asignaciones</button>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Observaciones</label>
+        <div id="detailObservaciones" class="mb-3 max-h-48 space-y-2 overflow-y-auto"></div>
+        <textarea id="detailObservacionText" rows="2" placeholder="Escribe una observación para este ticket…" class="w-full rounded-lg border-2 border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"></textarea>
+        <div class="mt-2 flex items-center justify-between gap-3">
+          <label class="flex items-center gap-2 text-xs text-slate-500">
+            <input id="detailNotificar" type="checkbox" class="h-4 w-4">
+            Enviar por correo al solicitante
+          </label>
+          <button class="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700" onclick="submitObservacion()">Guardar observación</button>
         </div>
-        <div id="kanbanBoard" class="flex items-start gap-4 overflow-x-auto pb-4"></div>
-      </div>
-
-      <!-- TAB: VEHICULOS -->
-      <div id="vehiculosTab" class="hidden">
-        <div class="mb-4 flex flex-wrap items-center gap-3">
-          <input id="entitySearch" type="text" placeholder="Buscar por placa, marca, modelo o departamento…" class="min-w-[240px] flex-1 rounded-lg border-2 border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand" oninput="renderEntitiesTable()">
-          <span id="entityCount" class="text-sm text-slate-500"></span>
-          <button class="rounded-lg bg-gradient-to-br from-brand to-brand-dark px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-brand/25" onclick="toggleAddForm()">+ Agregar vehículo</button>
-        </div>
-
-        <div id="addEntityForm" class="mb-6 hidden rounded-2xl bg-white p-5 shadow-sm">
-          <h3 class="mb-4 text-base font-bold text-brand-dark">Nuevo vehículo</h3>
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <input id="newPlaca" placeholder="Placa *" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm">
-            <input id="newTipo" placeholder="Tipo (Automóvil, Moto…)" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm">
-            <input id="newMarca" placeholder="Marca" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm">
-            <input id="newModelo" placeholder="Modelo" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm">
-            <input id="newAnio" placeholder="Año" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm">
-            <select id="newEstado" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm">
-              <option value="Activo">Activo</option>
-              <option value="Inactivo">Inactivo</option>
-            </select>
-            <input id="newDepartamento" placeholder="Departamento (dueño del vehículo)" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm">
-            <input id="newCombustible" placeholder="Combustible" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm">
-          </div>
-          <div id="entityFormError" class="mt-3 hidden rounded-lg border-2 border-red-400 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800"></div>
-          <div class="mt-4 flex gap-2.5">
-            <button class="rounded-lg bg-accent px-5 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700" onclick="submitEntity()">Crear y generar QR</button>
-            <button class="rounded-lg border-2 border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600" onclick="toggleAddForm()">Cancelar</button>
-          </div>
-        </div>
-
-        <div class="overflow-x-auto rounded-2xl bg-white shadow-sm">
-          <table class="w-full min-w-[720px] text-left text-sm">
-            <thead>
-              <tr class="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
-                <th class="px-4 py-3">Placa</th>
-                <th class="px-4 py-3">Tipo</th>
-                <th class="px-4 py-3">Marca / Modelo</th>
-                <th class="px-4 py-3">Año</th>
-                <th class="px-4 py-3">Estado</th>
-                <th class="px-4 py-3">Departamento</th>
-                <th class="px-4 py-3">Combustible</th>
-                <th class="px-4 py-3">QR</th>
-                <th class="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody id="entitiesTableBody"></tbody>
-          </table>
-        </div>
+        <div id="detailObservacionError" class="mt-2 hidden text-xs font-semibold text-red-600"></div>
       </div>
     </div>
   </div>
 
-  <!-- MODAL QR -->
-  <div id="qrModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-5">
-    <div class="w-full max-w-xs rounded-2xl bg-white p-6 text-center shadow-2xl">
-      <h3 id="qrModalTitle" class="mb-4 text-base font-bold text-brand-dark">QR del vehículo</h3>
-      <img id="qrModalImg" class="mx-auto mb-4 h-48 w-48 rounded-lg border-2 border-slate-100" alt="Código QR">
-      <a id="qrModalDownload" class="mb-2 block w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-bold text-white" download>Descargar QR</a>
-      <button class="w-full rounded-lg border-2 border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600" onclick="closeQrModal()">Cerrar</button>
-    </div>
-  </div>
-
+<script src="/tickets/admin/admin-shared.js"></script>
 <script>
   let ticketTypesByName = {};
   let allTickets = [];
-  let entities = [];
+  let entitiesById = {};
   let currentTicketType = "reporte";
+  let currentView = "kanban";
+  let listStatusFilter = "Todos";
+  let detailTicketId = null;
 
-  const TAB_ACTIVE = ["rounded-lg", "px-4", "py-2", "text-sm", "font-semibold", "bg-white", "text-brand-dark", "shadow-sm"];
-  const TAB_INACTIVE = ["rounded-lg", "px-4", "py-2", "text-sm", "font-semibold", "text-white/70", "hover:text-white"];
   const TYPE_TAB_ACTIVE = ["rounded-lg", "px-4", "py-2.5", "text-sm", "font-bold", "text-white", "bg-gradient-to-br", "from-brand", "to-brand-dark", "shadow-md", "shadow-brand/25"];
   const TYPE_TAB_INACTIVE = ["rounded-lg", "px-4", "py-2.5", "text-sm", "font-bold", "text-slate-500", "bg-white", "hover:text-brand"];
+
+  const FILTER_TAB_ACTIVE = ["rounded-full", "px-3.5", "py-1.5", "text-xs", "font-bold", "text-white", "bg-brand"];
+  const FILTER_TAB_INACTIVE = ["rounded-full", "px-3.5", "py-1.5", "text-xs", "font-bold", "text-slate-500", "bg-white", "hover:text-brand"];
 
   const INCIDENT_TYPES = [
     { label: "Falla / Problema", desc: "Testigos en tablero, ruidos extraños, fallas mecánicas o eléctricas, motor no enciende." },
@@ -161,95 +109,67 @@
     "Baja": "bg-slate-200 text-slate-600"
   };
 
-  function showPasscode() {
-    document.getElementById("welcomeScreen").classList.add("hidden");
-    document.getElementById("passcodeScreen").classList.remove("hidden");
-    document.getElementById("passcodeScreen").classList.add("flex");
-    document.getElementById("passcodeInput").focus();
-  }
-
-  function showWelcome() {
-    document.getElementById("passcodeScreen").classList.add("hidden");
-    document.getElementById("passcodeScreen").classList.remove("flex");
-    document.getElementById("welcomeScreen").classList.remove("hidden");
-    document.getElementById("gateError").classList.add("hidden");
-    document.getElementById("passcodeInput").value = "";
-  }
-
-  function gateError(msg) {
-    const el = document.getElementById("gateError");
-    el.textContent = msg;
-    el.classList.remove("hidden");
-  }
-
-  async function login() {
-    const passcode = document.getElementById("passcodeInput").value.trim();
-    if (!passcode) { gateError("Ingresa tu contraseña"); return; }
-    const response = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ passcode })
-    });
-    const data = await response.json();
-    if (!response.ok) { gateError(data.detail || "Contraseña incorrecta"); return; }
-    enterPanel(data.department);
-  }
-
-  async function logout() {
-    await fetch("/api/admin/logout", { method: "POST" });
-    document.getElementById("panelScreen").classList.add("hidden");
-    showWelcome();
-  }
-
-  function enterPanel(dept) {
-    document.getElementById("welcomeScreen").classList.add("hidden");
-    document.getElementById("passcodeScreen").classList.add("hidden");
-    document.getElementById("passcodeScreen").classList.remove("flex");
-    document.getElementById("panelScreen").classList.remove("hidden");
-    document.getElementById("deptName").textContent = dept.name;
-    document.getElementById("deptSlug").textContent = "Departamento: " + dept.slug;
-    switchTab("tickets");
-    switchTicketType("reporte");
-    loadTickets();
-  }
-
-  let entitiesLoaded = false;
-
-  function switchTab(tab) {
-    document.getElementById("tabBtnTickets").className = (tab === "tickets" ? TAB_ACTIVE : TAB_INACTIVE).join(" ");
-    document.getElementById("tabBtnVehiculos").className = (tab === "vehiculos" ? TAB_ACTIVE : TAB_INACTIVE).join(" ");
-    document.getElementById("ticketsTab").classList.toggle("hidden", tab !== "tickets");
-    document.getElementById("vehiculosTab").classList.toggle("hidden", tab !== "vehiculos");
-    if (tab === "vehiculos" && !entitiesLoaded) {
-      entitiesLoaded = true;
-      loadEntities();
-    }
-  }
-
-  function formatDate(value) {
-    return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-  }
-
   async function loadTickets() {
-    const response = await fetch("/api/admin/tickets");
-    if (response.status === 401) { showWelcome(); return; }
-    const data = await response.json();
+    const [ticketsRes, entitiesRes] = await Promise.all([
+      fetch("/api/admin/tickets"),
+      fetch("/api/admin/entities")
+    ]);
+    if (ticketsRes.status === 401) { location.href = "/admin"; return; }
+    const data = await ticketsRes.json();
     ticketTypesByName = {};
     (data.ticket_types || []).forEach(t => ticketTypesByName[t.name] = t);
     allTickets = data.tickets || [];
-    renderBoard();
+
+    entitiesById = {};
+    if (entitiesRes.ok) {
+      const entitiesData = await entitiesRes.json();
+      (entitiesData.entities || []).forEach(e => entitiesById[e.id] = e);
+    }
+    render();
+  }
+
+  function vehiculoLabel(ticket) {
+    const entity = entitiesById[ticket.entity_id];
+    if (!entity) return null;
+    const a = entity.atributos || {};
+    const marcaModelo = [a.marca, a.modelo].filter(Boolean).join(" ") || entity.nombre || "";
+    return { placa: entity.codigo, marcaModelo };
+  }
+
+  function vehiculoBadgeHtml(ticket) {
+    const vehiculo = vehiculoLabel(ticket);
+    if (!vehiculo) return "";
+    return `<span class="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-bold text-brand-dark">${vehiculo.placa}</span>`;
   }
 
   function switchTicketType(type) {
     currentTicketType = type;
+    listStatusFilter = "Todos";
     document.getElementById("typeBtnReporte").className = (type === "reporte" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
     document.getElementById("typeBtnAsignacion").className = (type === "asignacion" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
-    renderBoard();
+    render();
+  }
+
+  function switchView(view) {
+    currentView = view;
+    document.getElementById("viewBtnKanban").className = (view === "kanban" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
+    document.getElementById("viewBtnLista").className = (view === "lista" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
+    document.getElementById("kanbanBoard").classList.toggle("hidden", view !== "kanban");
+    document.getElementById("listView").classList.toggle("hidden", view !== "lista");
+    render();
   }
 
   function currentType() {
     const name = currentTicketType === "reporte" ? "Reporte de falla" : "Solicitud de vehículo";
     return ticketTypesByName[name] || null;
+  }
+
+  function render() {
+    if (currentView === "kanban") {
+      renderBoard();
+    } else {
+      renderList();
+    }
   }
 
   function renderBoard() {
@@ -263,7 +183,7 @@
     board.innerHTML = type.estados.map(estado => {
       const cards = filtered.filter(t => t.estado === estado);
       return `
-        <div class="kanban-column w-72 shrink-0 rounded-2xl bg-black/10 p-3" data-estado="${estado}">
+        <div class="kanban-column w-[82vw] max-w-xs shrink-0 snap-center rounded-2xl bg-black/10 p-3 sm:w-72" data-estado="${estado}">
           <div class="mb-3 flex items-center justify-between px-1">
             <h4 class="text-sm font-bold text-slate-600">${estado}</h4>
             <span class="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-500">${cards.length}</span>
@@ -274,24 +194,29 @@
     }).join("");
   }
 
+  function classifySelects(ticket) {
+    if (currentTicketType !== "reporte") return "";
+    return `
+      <select class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px]" onchange="classifyTicket('${ticket.id}', 'incidente_tipo', this.value)">
+        <option value="">Tipo de incidente…</option>
+        ${INCIDENT_TYPES.map(i => `<option value="${i.label}" title="${i.desc}" ${ticket.incidente_tipo === i.label ? "selected" : ""}>${i.label}</option>`).join("")}
+      </select>
+      <select class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px]" onchange="classifyTicket('${ticket.id}', 'prioridad', this.value)">
+        <option value="">Prioridad…</option>
+        ${PRIORIDADES.map(p => `<option value="${p}" ${ticket.prioridad === p ? "selected" : ""}>${p}</option>`).join("")}
+      </select>
+    `;
+  }
+
   function renderCard(ticket) {
     const campos = ticket.campos || {};
     const resumen = campos.descripcion || campos.proposito || "";
     const prioridadBadge = ticket.prioridad
       ? `<span class="rounded-full px-2 py-0.5 text-[11px] font-bold ${PRIORIDAD_CLASSES[ticket.prioridad]}">${ticket.prioridad}</span>`
       : "";
-    const classifyHtml = currentTicketType === "reporte" ? `
-      <div class="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5">
-        <select class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px]" onchange="classifyTicket('${ticket.id}', 'incidente_tipo', this.value)">
-          <option value="">Tipo de incidente…</option>
-          ${INCIDENT_TYPES.map(i => `<option value="${i.label}" title="${i.desc}" ${ticket.incidente_tipo === i.label ? "selected" : ""}>${i.label}</option>`).join("")}
-        </select>
-        <select class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px]" onchange="classifyTicket('${ticket.id}', 'prioridad', this.value)">
-          <option value="">Prioridad…</option>
-          ${PRIORIDADES.map(p => `<option value="${p}" ${ticket.prioridad === p ? "selected" : ""}>${p}</option>`).join("")}
-        </select>
-      </div>
-    ` : "";
+    const classifyHtml = currentTicketType === "reporte"
+      ? `<div class="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5">${classifySelects(ticket)}</div>`
+      : "";
     return `
       <div class="kanban-card cursor-grab rounded-xl bg-white p-3.5 shadow-sm active:cursor-grabbing" draggable="true" data-ticket-id="${ticket.id}">
         <div class="flex items-start justify-between gap-2">
@@ -300,8 +225,10 @@
         </div>
         <div class="mt-1 text-sm font-bold text-brand-dark">${ticket.solicitante_nombre}</div>
         <div class="mt-1 text-xs text-slate-500">${resumen}</div>
+        <div class="mt-1.5 flex items-center gap-1.5">${vehiculoBadgeHtml(ticket)}</div>
         <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
         ${classifyHtml}
+        <button class="mt-2.5 w-full rounded-md border border-slate-200 py-1 text-[11px] font-semibold text-brand hover:bg-slate-50" onclick="openDetail('${ticket.id}')">Ver detalle</button>
       </div>
     `;
   }
@@ -316,7 +243,7 @@
       body: JSON.stringify({ incidente_tipo: ticket.incidente_tipo || null, prioridad: ticket.prioridad || null })
     });
     if (!response.ok) { alert("No se pudo clasificar el ticket."); }
-    renderBoard();
+    render();
   }
 
   async function moveTicket(ticketId, nuevoEstado) {
@@ -324,7 +251,7 @@
     if (!ticket || ticket.estado === nuevoEstado) return;
     const previo = ticket.estado;
     ticket.estado = nuevoEstado;
-    renderBoard();
+    render();
     const response = await fetch(`/api/admin/tickets/${ticketId}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -332,9 +259,172 @@
     });
     if (!response.ok) {
       ticket.estado = previo;
-      renderBoard();
+      render();
       alert("No se pudo mover el ticket.");
     }
+  }
+
+  function switchListStatusFilter(estado) {
+    listStatusFilter = estado;
+    renderList();
+  }
+
+  function renderList() {
+    const type = currentType();
+    const filterBar = document.getElementById("statusFilterBar");
+    const list = document.getElementById("ticketList");
+    if (!type) {
+      filterBar.innerHTML = "";
+      list.innerHTML = '<div class="py-16 text-center text-slate-400">Este departamento todavía no tiene configurado este tipo de ticket.</div>';
+      return;
+    }
+
+    const filtered = allTickets.filter(t => t.ticket_type_id === type.id);
+    const filters = ["Todos", ...type.estados];
+    filterBar.innerHTML = filters.map(estado => {
+      const count = estado === "Todos" ? filtered.length : filtered.filter(t => t.estado === estado).length;
+      const active = listStatusFilter === estado;
+      return `<button class="${(active ? FILTER_TAB_ACTIVE : FILTER_TAB_INACTIVE).join(" ")}" onclick="switchListStatusFilter('${estado}')">${estado} (${count})</button>`;
+    }).join("");
+
+    const visible = (listStatusFilter === "Todos" ? filtered : filtered.filter(t => t.estado === listStatusFilter))
+      .slice()
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    if (!visible.length) {
+      list.innerHTML = '<div class="py-16 text-center text-slate-400">Sin tickets para este filtro.</div>';
+      return;
+    }
+    list.innerHTML = visible.map(t => renderListRow(t, type.estados)).join("");
+  }
+
+  function renderListRow(ticket, estados) {
+    const campos = ticket.campos || {};
+    const resumen = campos.descripcion || campos.proposito || "";
+    const prioridadBadge = ticket.prioridad
+      ? `<span class="rounded-full px-2 py-0.5 text-[11px] font-bold ${PRIORIDAD_CLASSES[ticket.prioridad]}">${ticket.prioridad}</span>`
+      : "";
+    return `
+      <div class="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3.5 shadow-sm sm:flex-nowrap" data-ticket-id="${ticket.id}">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="font-mono text-[11px] font-bold text-slate-400">${ticket.folio}</span>
+            ${prioridadBadge}
+          </div>
+          <div class="mt-1 text-sm font-bold text-brand-dark">${ticket.solicitante_nombre}</div>
+          <div class="mt-1 truncate text-xs text-slate-500">${resumen}</div>
+          <div class="mt-1.5 flex items-center gap-1.5">${vehiculoBadgeHtml(ticket)}</div>
+          <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
+          <button class="mt-1.5 text-[11px] font-semibold text-brand underline" onclick="openDetail('${ticket.id}')">Ver detalle</button>
+        </div>
+        <div class="flex w-full shrink-0 flex-col gap-1.5 sm:w-56">
+          ${classifySelects(ticket)}
+          <select class="w-full rounded-full border-2 border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-brand-dark outline-none focus:border-brand" onchange="moveTicket('${ticket.id}', this.value)">
+            ${estados.map(estado => `<option value="${estado}" ${ticket.estado === estado ? "selected" : ""}>${estado}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+    `;
+  }
+
+  async function openDetail(ticketId) {
+    const ticket = allTickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    detailTicketId = ticketId;
+
+    const campos = ticket.campos || {};
+    const vehiculo = vehiculoLabel(ticket);
+    document.getElementById("detailFolio").textContent = ticket.folio;
+    document.getElementById("detailPlaca").textContent = vehiculo ? `${vehiculo.placa} — ${vehiculo.marcaModelo}` : "Sin vehículo asociado";
+
+    const info = [
+      ["Fecha/hora", formatDate(ticket.created_at)],
+      ["Operador / solicitante", ticket.solicitante_nombre],
+      ["Correo", ticket.solicitante_email],
+      ["Número de nómina", campos.numero_nomina || "—"],
+      ["Descripción", campos.descripcion || campos.proposito || "—"],
+      ["Estado", ticket.estado],
+      ["Prioridad", ticket.prioridad || "—"],
+      ["Fecha de resolución", ticket.resolved_at ? formatDate(ticket.resolved_at) : "—"]
+    ];
+    document.getElementById("detailInfo").innerHTML = info.map(([label, value]) => `
+      <div>
+        <div class="text-[11px] font-bold uppercase tracking-wide text-slate-400">${label}</div>
+        <div class="text-slate-700">${value}</div>
+      </div>
+    `).join("");
+
+    document.getElementById("detailResponsable").value = ticket.responsable_nombre || "";
+    document.getElementById("detailObservacionText").value = "";
+    document.getElementById("detailNotificar").checked = false;
+    document.getElementById("detailObservacionError").classList.add("hidden");
+    document.getElementById("detailObservaciones").innerHTML = `<div class="text-xs text-slate-400">Cargando…</div>`;
+
+    document.getElementById("detailModal").classList.remove("hidden");
+    document.getElementById("detailModal").classList.add("flex");
+
+    loadObservaciones(ticketId);
+  }
+
+  function closeDetail() {
+    detailTicketId = null;
+    document.getElementById("detailModal").classList.add("hidden");
+    document.getElementById("detailModal").classList.remove("flex");
+  }
+
+  async function loadObservaciones(ticketId) {
+    const response = await fetch(`/api/admin/events?ticket_id=${ticketId}`);
+    const el = document.getElementById("detailObservaciones");
+    if (!response.ok) { el.innerHTML = `<div class="text-xs text-red-500">No se pudo cargar el historial.</div>`; return; }
+    const data = await response.json();
+    const observaciones = (data.events || []).filter(e => e.accion === "observacion");
+    if (!observaciones.length) {
+      el.innerHTML = `<div class="text-xs text-slate-400">Sin observaciones todavía.</div>`;
+      return;
+    }
+    el.innerHTML = observaciones.map(e => `
+      <div class="rounded-lg bg-slate-50 p-2.5 text-xs">
+        <div class="text-slate-700">${e.comentario}</div>
+        <div class="mt-1 text-[10px] text-slate-400">${formatDate(e.created_at)}</div>
+      </div>
+    `).join("");
+  }
+
+  async function saveResponsable() {
+    if (!detailTicketId) return;
+    const responsable_nombre = document.getElementById("detailResponsable").value.trim();
+    const response = await fetch(`/api/admin/tickets/${detailTicketId}/responsable`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ responsable_nombre })
+    });
+    if (!response.ok) { alert("No se pudo guardar el responsable."); return; }
+    const ticket = allTickets.find(t => t.id === detailTicketId);
+    if (ticket) ticket.responsable_nombre = responsable_nombre || null;
+  }
+
+  async function submitObservacion() {
+    if (!detailTicketId) return;
+    const comentario = document.getElementById("detailObservacionText").value.trim();
+    const errorEl = document.getElementById("detailObservacionError");
+    errorEl.classList.add("hidden");
+    if (!comentario) { errorEl.textContent = "Escribe una observación."; errorEl.classList.remove("hidden"); return; }
+    const notificar_email = document.getElementById("detailNotificar").checked;
+
+    const response = await fetch(`/api/admin/tickets/${detailTicketId}/observaciones`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comentario, notificar_email })
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      errorEl.textContent = data.detail || "No se pudo guardar la observación.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    document.getElementById("detailObservacionText").value = "";
+    document.getElementById("detailNotificar").checked = false;
+    loadObservaciones(detailTicketId);
   }
 
   (function setupDragAndDrop() {
@@ -370,132 +460,13 @@
     });
   })();
 
-  async function loadEntities() {
-    const response = await fetch("/api/admin/entities");
-    if (response.status === 401) { showWelcome(); return; }
-    const data = await response.json();
-    entities = data.entities || [];
-    renderEntitiesTable();
-  }
-
-  function renderEntitiesTable() {
-    const query = (document.getElementById("entitySearch").value || "").trim().toLowerCase();
-    const filtered = !query ? entities : entities.filter(e => {
-      const a = e.atributos || {};
-      return [e.codigo, a.marca, a.modelo, a.departamento, a.tipo].join(" ").toLowerCase().includes(query);
-    });
-    document.getElementById("entityCount").textContent = `${filtered.length} de ${entities.length} vehículos`;
-
-    const body = document.getElementById("entitiesTableBody");
-    if (!filtered.length) {
-      body.innerHTML = `<tr><td colspan="9" class="px-4 py-10 text-center text-slate-400">Sin vehículos que coincidan.</td></tr>`;
-      return;
-    }
-    body.innerHTML = filtered.map(e => {
-      const a = e.atributos || {};
-      const estadoClass = a.estado === "Inactivo" ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-800";
-      return `
-        <tr class="border-b border-slate-50 last:border-0 hover:bg-slate-50">
-          <td class="px-4 py-3 font-mono font-bold text-brand-dark">${e.codigo}</td>
-          <td class="px-4 py-3 text-slate-600">${a.tipo || "—"}</td>
-          <td class="px-4 py-3 text-slate-600">${[a.marca, a.modelo].filter(Boolean).join(" ") || e.nombre || "—"}</td>
-          <td class="px-4 py-3 text-slate-600">${a.año || "—"}</td>
-          <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-bold ${estadoClass}">${a.estado || "—"}</span></td>
-          <td class="px-4 py-3 text-slate-600">${a.departamento || "—"}</td>
-          <td class="px-4 py-3 text-slate-600">${a.combustible || "—"}</td>
-          <td class="px-4 py-3"><button class="text-xs font-semibold text-brand underline" onclick="viewQr('${e.id}','${e.codigo}')">Ver QR</button></td>
-          <td class="px-4 py-3"><button class="text-xs font-semibold text-red-600 underline" onclick="deleteEntity('${e.id}','${e.codigo}')">Eliminar</button></td>
-        </tr>
-      `;
-    }).join("");
-  }
-
-  function toggleAddForm() {
-    const form = document.getElementById("addEntityForm");
-    form.classList.toggle("hidden");
-    document.getElementById("entityFormError").classList.add("hidden");
-  }
-
-  function entityFormError(msg) {
-    const el = document.getElementById("entityFormError");
-    el.textContent = msg;
-    el.classList.remove("hidden");
-  }
-
-  async function submitEntity() {
-    const codigo = document.getElementById("newPlaca").value.trim().toUpperCase();
-    if (!codigo) { entityFormError("La placa es obligatoria"); return; }
-
-    const atributos = {
-      tipo: document.getElementById("newTipo").value.trim(),
-      marca: document.getElementById("newMarca").value.trim(),
-      modelo: document.getElementById("newModelo").value.trim(),
-      año: document.getElementById("newAnio").value.trim(),
-      estado: document.getElementById("newEstado").value,
-      departamento: document.getElementById("newDepartamento").value.trim(),
-      combustible: document.getElementById("newCombustible").value.trim()
-    };
-    const nombre = [atributos.marca, atributos.modelo].filter(Boolean).join(" ");
-
-    const response = await fetch("/api/admin/entities", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ codigo, nombre, atributos })
-    });
-    const data = await response.json();
-    if (!response.ok) { entityFormError(data.detail || "No se pudo crear el vehículo"); return; }
-
-    toggleAddForm();
-    ["newPlaca", "newTipo", "newMarca", "newModelo", "newAnio", "newDepartamento", "newCombustible"].forEach(id => document.getElementById(id).value = "");
-    entitiesLoaded = false;
-    await loadEntities();
-    entitiesLoaded = true;
-    showQrModal(`Vehículo ${codigo} creado`, `data:image/png;base64,${data.qr_base64}`, codigo);
-  }
-
-  function viewQr(entityId, codigo) {
-    const url = `/api/admin/entities/${entityId}/qr`;
-    showQrModal(`QR de ${codigo}`, url, codigo);
-  }
-
-  function showQrModal(title, imgSrc, codigo) {
-    document.getElementById("qrModalTitle").textContent = title;
-    document.getElementById("qrModalImg").src = imgSrc;
-    const download = document.getElementById("qrModalDownload");
-    download.href = imgSrc;
-    download.download = `qr-${codigo}.png`;
-    document.getElementById("qrModal").classList.remove("hidden");
-    document.getElementById("qrModal").classList.add("flex");
-  }
-
-  function closeQrModal() {
-    document.getElementById("qrModal").classList.add("hidden");
-    document.getElementById("qrModal").classList.remove("flex");
-  }
-
-  async function deleteEntity(entityId, codigo) {
-    if (!confirm(`¿Eliminar el vehículo ${codigo}? Esta acción no se puede deshacer.`)) return;
-    const response = await fetch(`/api/admin/entities/${entityId}`, { method: "DELETE" });
-    if (response.ok) {
-      entitiesLoaded = false;
-      await loadEntities();
-      entitiesLoaded = true;
-    } else {
-      alert("No se pudo eliminar el vehículo.");
-    }
-  }
-
-  document.getElementById("passcodeInput").addEventListener("keydown", e => {
-    if (e.key === "Enter") login();
-  });
-
-  // Si ya hay sesión activa (recarga de página), entra directo al panel.
-  (async function checkSession() {
-    const response = await fetch("/api/admin/me");
-    if (response.ok) {
-      const data = await response.json();
-      enterPanel(data.department);
-    }
+  (async function init() {
+    const dept = await requireSession();
+    if (!dept) return;
+    renderNav("tickets", dept);
+    switchView("kanban");
+    switchTicketType("reporte");
+    loadTickets();
   })();
 </script>
 </body>

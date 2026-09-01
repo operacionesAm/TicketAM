@@ -5,7 +5,12 @@
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "backend/run.py" },
-    { "src": "/admin", "dest": "/frontend/tickets/admin/tickets.html" },
+    { "src": "/admin", "dest": "/frontend/tickets/admin/login.html" },
+    { "src": "/admin/dashboard", "dest": "/frontend/tickets/admin/dashboard.html" },
+    { "src": "/admin/tickets", "dest": "/frontend/tickets/admin/tickets.html" },
+    { "src": "/admin/inventario", "dest": "/frontend/tickets/admin/inventario.html" },
+    { "src": "/admin/reportes", "dest": "/frontend/tickets/admin/reportes.html" },
+    { "src": "/admin/configuracion", "dest": "/frontend/tickets/admin/configuracion.html" },
     { "src": "/", "dest": "/frontend/tickets/usuario/index.html" },
     { "src": "/(.*)", "dest": "/frontend/$1" }
   ]

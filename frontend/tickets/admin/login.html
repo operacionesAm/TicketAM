@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Administrador | TicketAM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT: '#2a5298', dark: '#1e3c72' },
+          accent: '#27ae60'
+        }
+      }
+    }
+  }
+</script>
+<style>
+  @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .anim-slide-up { animation: slideUp .4s ease-out; }
+</style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-brand-dark to-brand font-sans text-slate-800">
+
+  <!-- BIENVENIDA -->
+  <div id="welcomeScreen" class="min-h-screen flex items-center justify-center p-5">
+    <div class="anim-slide-up w-full max-w-md rounded-2xl bg-white p-10 text-center shadow-2xl">
+      <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-2xl font-bold text-white">T</div>
+      <h1 class="mb-2 text-xl font-bold text-brand-dark">Panel de Administrador</h1>
+      <p class="mb-7 text-sm leading-relaxed text-slate-500">Acceso exclusivo para el equipo que gestiona los tickets de este departamento.</p>
+      <button class="w-full rounded-xl bg-gradient-to-br from-brand to-brand-dark px-4 py-4 text-sm font-bold text-white shadow-lg shadow-brand/30 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="showPasscode()">Ingresar</button>
+    </div>
+  </div>
+
+  <!-- CONTRASEÑA -->
+  <div id="passcodeScreen" class="hidden min-h-screen items-center justify-center p-5">
+    <div class="anim-slide-up w-full max-w-md rounded-2xl bg-white p-10 text-center shadow-2xl">
+      <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-2xl text-white">🔒</div>
+      <h1 class="mb-2 text-xl font-bold text-brand-dark">Contraseña de administrador</h1>
+      <p class="mb-7 text-sm leading-relaxed text-slate-500">Ingresa tu contraseña de 8 dígitos.</p>
+      <div id="gateError" class="mb-4 hidden rounded-xl border-2 border-red-400 bg-red-50 px-3 py-3 text-sm font-semibold text-red-800"></div>
+      <input id="passcodeInput" class="mb-2 w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-4 text-center font-mono text-2xl tracking-[0.5em] outline-none focus:border-brand focus:bg-white" type="password" inputmode="numeric" maxlength="8" placeholder="········" autocomplete="off">
+      <p class="mb-6 text-xs text-slate-400">No compartas esta contraseña con nadie.</p>
+      <button class="w-full rounded-xl bg-gradient-to-br from-brand to-brand-dark px-4 py-4 text-sm font-bold text-white shadow-lg shadow-brand/30 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="login()">Entrar</button>
+      <button class="mt-4 text-sm font-semibold text-brand underline" onclick="showWelcome()">‹ Volver</button>
+    </div>
+  </div>
+
+<script>
+  function showPasscode() {
+    document.getElementById("welcomeScreen").classList.add("hidden");
+    document.getElementById("passcodeScreen").classList.remove("hidden");
+    document.getElementById("passcodeScreen").classList.add("flex");
+    document.getElementById("passcodeInput").focus();
+  }
+
+  function showWelcome() {
+    document.getElementById("passcodeScreen").classList.add("hidden");
+    document.getElementById("passcodeScreen").classList.remove("flex");
+    document.getElementById("welcomeScreen").classList.remove("hidden");
+    document.getElementById("gateError").classList.add("hidden");
+    document.getElementById("passcodeInput").value = "";
+  }
+
+  function gateError(msg) {
+    const el = document.getElementById("gateError");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+
+  async function login() {
+    const passcode = document.getElementById("passcodeInput").value.trim();
+    if (!passcode) { gateError("Ingresa tu contraseña"); return; }
+    const response = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passcode })
+    });
+    const data = await response.json();
+    if (!response.ok) { gateError(data.detail || "Contraseña incorrecta"); return; }
+    location.href = "/admin/dashboard";
+  }
+
+  document.getElementById("passcodeInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") login();
+  });
+
+  // Si ya hay sesión activa (recarga de página), entra directo al dashboard.
+  (async function checkSession() {
+    const response = await fetch("/api/admin/me");
+    if (response.ok) location.href = "/admin/dashboard";
+  })();
+</script>
+</body>
+</html>

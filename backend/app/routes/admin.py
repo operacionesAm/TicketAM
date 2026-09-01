@@ -8,15 +8,18 @@ limitar cada operación al departamento de esa sesión.
 """
 import base64
 import os
+import secrets
 from datetime import datetime, timezone
 from functools import wraps
 from uuid import uuid4
 
-from flask import Blueprint, Response, jsonify, request, session
+from flask import Blueprint, Response, jsonify, redirect, request, session
 from werkzeug.security import check_password_hash
 
-from app.demo_data import DEMO_ADMIN_PASSCODES, DEMO_ENTITIES, DEMO_TICKET_EVENTS, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
+from app import google_oauth
+from app.demo_data import DEMO_ADMIN_PASSCODES, DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_TICKET_EVENTS, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
 from app.extensions import supabase
+from app.mailer import send_observation_email
 from app.qr import entity_qr_url, generate_labeled_qr_png
 
 admin_bp = Blueprint("admin", __name__)
@@ -159,6 +162,65 @@ def admin_update_status(ticket_id: str):
     return jsonify({"ticket": updated.data[0], "event": {"accion": "cambio_estado"}})
 
 
+@admin_bp.patch("/api/admin/tickets/<ticket_id>/responsable")
+@require_admin
+def admin_assign_responsable(ticket_id: str):
+    payload = request.get_json(silent=True) or {}
+    responsable_nombre = (payload.get("responsable_nombre") or "").strip() or None
+    department_id = session["department_id"]
+
+    if not supabase:
+        ticket = next((item for item in DEMO_TICKETS if item["id"] == ticket_id and item["department_id"] == department_id), None)
+        if not ticket:
+            return error("Ticket no encontrado", 404)
+        ticket["responsable_nombre"] = responsable_nombre
+        return jsonify({"ticket": ticket})
+
+    current = supabase.table("tickets").select("department_id").eq("id", ticket_id).single().execute()
+    if not current.data or current.data["department_id"] != department_id:
+        return error("Ticket no encontrado", 404)
+    updated = supabase.table("tickets").update({"responsable_nombre": responsable_nombre}).eq("id", ticket_id).execute()
+    supabase.table("ticket_events").insert({
+        "ticket_id": ticket_id,
+        "accion": "responsable_asignado",
+        "comentario": responsable_nombre or "(sin asignar)",
+    }).execute()
+    return jsonify({"ticket": updated.data[0]})
+
+
+@admin_bp.post("/api/admin/tickets/<ticket_id>/observaciones")
+@require_admin
+def admin_add_observacion(ticket_id: str):
+    payload = request.get_json(silent=True) or {}
+    comentario = (payload.get("comentario") or "").strip()
+    notificar_email = bool(payload.get("notificar_email"))
+    if not comentario:
+        return error("La observación no puede estar vacía", 400)
+    department_id = session["department_id"]
+
+    if not supabase:
+        ticket = next((item for item in DEMO_TICKETS if item["id"] == ticket_id and item["department_id"] == department_id), None)
+        if not ticket:
+            return error("Ticket no encontrado", 404)
+        event = {
+            "id": str(uuid4()), "ticket_id": ticket_id, "accion": "observacion",
+            "estado_anterior": None, "estado_nuevo": None, "comentario": comentario, "created_at": now(),
+        }
+        DEMO_TICKET_EVENTS.insert(0, event)
+        if notificar_email:
+            send_observation_email(DEMO_DEPARTMENT, ticket, comentario)
+        return jsonify({"event": event}), 201
+
+    current = supabase.table("tickets").select("*").eq("id", ticket_id).single().execute()
+    if not current.data or current.data["department_id"] != department_id:
+        return error("Ticket no encontrado", 404)
+    result = supabase.table("ticket_events").insert({"ticket_id": ticket_id, "accion": "observacion", "comentario": comentario}).execute()
+    if notificar_email:
+        dept = supabase.table("departments").select("name, google_refresh_token").eq("id", department_id).single().execute()
+        send_observation_email(dept.data or {}, current.data, comentario)
+    return jsonify({"event": result.data[0]}), 201
+
+
 @admin_bp.get("/api/admin/entities")
 @require_admin
 def admin_list_entities():
@@ -287,16 +349,114 @@ def admin_entity_qr(entity_id: str):
     return Response(png_bytes, mimetype="image/png", headers={"Content-Disposition": f'inline; filename="qr-{codigo}.png"'})
 
 
+@admin_bp.get("/api/admin/settings")
+@require_admin
+def admin_get_settings():
+    department_id = session["department_id"]
+
+    if not supabase:
+        return jsonify({
+            "notification_email": DEMO_DEPARTMENT.get("notification_email"),
+            "google_connected_email": DEMO_DEPARTMENT.get("google_connected_email"),
+        })
+
+    current = supabase.table("departments").select("notification_email, google_connected_email").eq("id", department_id).single().execute()
+    data = current.data or {}
+    return jsonify({
+        "notification_email": data.get("notification_email"),
+        "google_connected_email": data.get("google_connected_email"),
+    })
+
+
+@admin_bp.patch("/api/admin/settings")
+@require_admin
+def admin_update_settings():
+    payload = request.get_json(silent=True) or {}
+    notification_email = (payload.get("notification_email") or "").strip() or None
+    department_id = session["department_id"]
+
+    if not supabase:
+        DEMO_DEPARTMENT["notification_email"] = notification_email
+        return jsonify({"notification_email": notification_email})
+
+    supabase.table("departments").update({"notification_email": notification_email}).eq("id", department_id).execute()
+    return jsonify({"notification_email": notification_email})
+
+
+@admin_bp.get("/api/admin/google/connect")
+@require_admin
+def admin_google_connect():
+    if not google_oauth.is_configured():
+        return error("La conexión con Google no está configurada en el servidor (faltan GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI).", 400)
+    state = secrets.token_urlsafe(24)
+    session["google_oauth_state"] = state
+    return redirect(google_oauth.build_auth_url(state))
+
+
+@admin_bp.get("/api/admin/google/callback")
+def admin_google_callback():
+    # Nota: sin @require_admin — Google navega aquí directo, no manda la
+    # sesión como fetch (sí manda la cookie porque es GET top-level, pero
+    # validamos "state" contra la sesión en vez de asumir el decorador).
+    if not session.get("department_id"):
+        return redirect("/admin")
+
+    state = request.args.get("state")
+    if not state or state != session.get("google_oauth_state"):
+        return redirect("/admin/configuracion?google=error")
+    session.pop("google_oauth_state", None)
+
+    code = request.args.get("code")
+    if not code:
+        return redirect("/admin/configuracion?google=error")
+
+    try:
+        result = google_oauth.exchange_code(code)
+    except Exception:
+        return redirect("/admin/configuracion?google=error")
+
+    if not result.get("refresh_token"):
+        # Ya estaba conectado y Google no reenvió refresh_token; nada que guardar.
+        return redirect("/admin/configuracion?google=error")
+
+    department_id = session["department_id"]
+    if not supabase:
+        DEMO_DEPARTMENT["google_refresh_token"] = result["refresh_token"]
+        DEMO_DEPARTMENT["google_connected_email"] = result.get("email")
+    else:
+        supabase.table("departments").update({
+            "google_refresh_token": result["refresh_token"],
+            "google_connected_email": result.get("email"),
+        }).eq("id", department_id).execute()
+
+    return redirect("/admin/configuracion?google=connected")
+
+
+@admin_bp.post("/api/admin/google/disconnect")
+@require_admin
+def admin_google_disconnect():
+    department_id = session["department_id"]
+    if not supabase:
+        DEMO_DEPARTMENT["google_refresh_token"] = None
+        DEMO_DEPARTMENT["google_connected_email"] = None
+        return jsonify({"ok": True})
+    supabase.table("departments").update({"google_refresh_token": None, "google_connected_email": None}).eq("id", department_id).execute()
+    return jsonify({"ok": True})
+
+
 @admin_bp.get("/api/admin/events")
 @require_admin
 def admin_list_events():
     department_id = session["department_id"]
     entity_id = request.args.get("entity_id") or None
+    ticket_id = request.args.get("ticket_id") or None
 
     if not supabase:
         ticket_ids = {
             t["id"] for t in DEMO_TICKETS
-            if t["department_id"] == department_id and (entity_id is None or t.get("entity_id") == entity_id)
+            if t["department_id"] == department_id
+            and (entity_id is None or t.get("entity_id") == entity_id)
+            and (ticket_id is None or t["id"] == ticket_id)
         }
         events = [e for e in DEMO_TICKET_EVENTS if e["ticket_id"] in ticket_ids]
         events.sort(key=lambda e: e["created_at"], reverse=True)
@@ -305,6 +465,8 @@ def admin_list_events():
     tickets_query = supabase.table("tickets").select("id").eq("department_id", department_id)
     if entity_id:
         tickets_query = tickets_query.eq("entity_id", entity_id)
+    if ticket_id:
+        tickets_query = tickets_query.eq("id", ticket_id)
     ticket_ids = [row["id"] for row in (tickets_query.execute().data or [])]
     if not ticket_ids:
         return jsonify({"events": [], "demo": False})

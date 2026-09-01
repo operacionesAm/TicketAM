@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard | TicketAM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT: '#2a5298', dark: '#1e3c72' },
+          accent: '#27ae60'
+        }
+      }
+    }
+  }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 font-sans text-slate-800">
+
+  <div id="adminNav"></div>
+
+  <div class="mx-auto max-w-5xl px-5 py-8">
+    <h1 class="mb-1 text-xl font-bold text-brand-dark">Dashboard</h1>
+    <p class="mb-6 text-sm text-slate-500">Lo que necesita tu atención hoy, y hacia dónde ir.</p>
+
+    <!-- KPIs -->
+    <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiTotal" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Total tickets</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiAbiertos" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Abiertos</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiEnProceso" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">En proceso</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiResueltos" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Resueltos / cerrados</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiPromedioDias" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Prom. días de solución</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiMasAntiguo" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Días del ticket más antiguo abierto</div>
+      </div>
+    </div>
+
+    <!-- ALERTAS -->
+    <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <a id="alertAlta" href="/admin/tickets" class="block rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+        <div class="flex items-center gap-3">
+          <div id="alertAltaIcon" class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-100 text-xl">🔴</div>
+          <div>
+            <div id="alertAltaValue" class="text-2xl font-bold leading-none">—</div>
+            <div class="mt-1 text-sm font-semibold">tickets abiertos con prioridad Alta</div>
+          </div>
+        </div>
+      </a>
+
+      <a id="alertSinClasificar" href="/admin/tickets" class="block rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+        <div class="flex items-center gap-3">
+          <div id="alertSinClasificarIcon" class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-100 text-xl">🟡</div>
+          <div>
+            <div id="alertSinClasificarValue" class="text-2xl font-bold leading-none">—</div>
+            <div class="mt-1 text-sm font-semibold">reportes sin clasificar</div>
+          </div>
+        </div>
+      </a>
+
+      <a id="alertVencidos" href="/admin/tickets" class="block rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+        <div class="flex items-center gap-3">
+          <div id="alertVencidosIcon" class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-100 text-xl">🟠</div>
+          <div>
+            <div id="alertVencidosValue" class="text-2xl font-bold leading-none">—</div>
+            <div class="mt-1 text-sm font-semibold">tickets abiertos hace más de 5 días</div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- GRAFICAS -->
+    <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Tickets por tipo de incidente</h2>
+        <p id="incidentChartCaption" class="mb-3 text-xs text-slate-400">&nbsp;</p>
+        <div class="relative h-64 sm:h-72">
+          <canvas id="incidentChart"></canvas>
+        </div>
+      </div>
+      <div class="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Estado del inventario de vehículos</h2>
+        <p id="fleetChartCaption" class="mb-3 text-xs text-slate-400">&nbsp;</p>
+        <div class="relative h-64 sm:h-72">
+          <canvas id="fleetChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABLAS -->
+    <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Distribución de tickets por tipo</h2>
+        <table class="w-full text-left text-sm">
+          <thead>
+            <tr class="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+              <th class="py-2">Tipo</th>
+              <th class="py-2 text-right">Cantidad</th>
+              <th class="py-2 text-right">% del total</th>
+            </tr>
+          </thead>
+          <tbody id="typeDistributionBody"></tbody>
+        </table>
+      </div>
+      <div class="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Estado de los tickets</h2>
+        <table class="w-full text-left text-sm">
+          <thead>
+            <tr class="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+              <th class="py-2">Estado</th>
+              <th class="py-2 text-right">Cantidad</th>
+            </tr>
+          </thead>
+          <tbody id="statusDistributionBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- NAVEGACION -->
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <a href="/admin/inventario" class="block rounded-2xl bg-white p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+        <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-2xl">📋</div>
+        <h2 class="mb-1.5 text-base font-bold text-brand-dark">Inventario de unidades</h2>
+        <p class="text-sm text-slate-500">Consulta, agrega, edita, elimina y genera QR de los vehículos del departamento.</p>
+      </a>
+
+      <a href="/admin/reportes" class="block rounded-2xl bg-white p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+        <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-2xl">📄</div>
+        <h2 class="mb-1.5 text-base font-bold text-brand-dark">Reportes individuales</h2>
+        <p class="text-sm text-slate-500">Elige un vehículo y revisa sus tickets e historial completo.</p>
+      </a>
+    </div>
+  </div>
+
+<script src="/tickets/admin/admin-shared.js"></script>
+<script>
+  const INCIDENT_TYPES = [
+    "Falla / Problema",
+    "Siniestro",
+    "Asistencia Urgente",
+    "Mantenimiento Preventivo",
+    "Mantenimiento Correctivo"
+  ];
+  const ESTADOS_FINALES = new Set(["Resuelto", "Cerrado", "Asignado", "Negado"]);
+
+  const ALERT_CLASSES = {
+    red: {
+      card: "block rounded-2xl border-2 border-red-200 bg-red-50 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+      icon: "grid h-11 w-11 shrink-0 place-items-center rounded-full bg-red-100 text-xl"
+    },
+    amber: {
+      card: "block rounded-2xl border-2 border-amber-200 bg-amber-50 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+      icon: "grid h-11 w-11 shrink-0 place-items-center rounded-full bg-amber-100 text-xl"
+    },
+    idle: {
+      card: "block rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+      icon: "grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-100 text-xl"
+    }
+  };
+
+  function alertStyle(el, iconEl, active, activeColor) {
+    const classes = active ? ALERT_CLASSES[activeColor] : ALERT_CLASSES.idle;
+    el.className = classes.card;
+    iconEl.className = classes.icon;
+  }
+
+  function renderAlerts(tickets, ticketTypesByName) {
+    const reporteType = ticketTypesByName["Reporte de falla"];
+    const reportes = reporteType ? tickets.filter(t => t.ticket_type_id === reporteType.id) : [];
+
+    const altaAbiertos = reportes.filter(t => t.prioridad === "Alta" && !ESTADOS_FINALES.has(t.estado));
+    document.getElementById("alertAltaValue").textContent = altaAbiertos.length;
+    alertStyle(document.getElementById("alertAlta"), document.getElementById("alertAltaIcon"), altaAbiertos.length > 0, "red");
+    document.getElementById("alertAltaIcon").textContent = altaAbiertos.length > 0 ? "🔴" : "✅";
+
+    const sinClasificar = reportes.filter(t => !t.incidente_tipo);
+    document.getElementById("alertSinClasificarValue").textContent = sinClasificar.length;
+    alertStyle(document.getElementById("alertSinClasificar"), document.getElementById("alertSinClasificarIcon"), sinClasificar.length > 0, "amber");
+    document.getElementById("alertSinClasificarIcon").textContent = sinClasificar.length > 0 ? "🟡" : "✅";
+
+    const cincoDiasMs = 5 * 24 * 60 * 60 * 1000;
+    const ahora = Date.now();
+    const vencidos = tickets.filter(t => !ESTADOS_FINALES.has(t.estado) && (ahora - new Date(t.created_at).getTime()) > cincoDiasMs);
+    document.getElementById("alertVencidosValue").textContent = vencidos.length;
+    alertStyle(document.getElementById("alertVencidos"), document.getElementById("alertVencidosIcon"), vencidos.length > 0, "amber");
+    document.getElementById("alertVencidosIcon").textContent = vencidos.length > 0 ? "🟠" : "✅";
+  }
+
+  function diasEntre(desde, hasta) {
+    return Math.floor((hasta - desde) / (24 * 60 * 60 * 1000));
+  }
+
+  function renderKpis(tickets) {
+    const total = tickets.length;
+    const abiertos = tickets.filter(t => t.estado === "Abierto").length;
+    const enProceso = tickets.filter(t => ["Pendiente", "En progreso"].includes(t.estado)).length;
+    const resueltos = tickets.filter(t => ESTADOS_FINALES.has(t.estado)).length;
+
+    const resueltosConTiempo = tickets.filter(t => t.resolved_at);
+    const promedioDias = resueltosConTiempo.length
+      ? Math.round(resueltosConTiempo.reduce((sum, t) => sum + diasEntre(new Date(t.created_at), new Date(t.resolved_at)), 0) / resueltosConTiempo.length * 10) / 10
+      : null;
+
+    const abiertosList = tickets.filter(t => !ESTADOS_FINALES.has(t.estado));
+    const masAntiguo = abiertosList.length
+      ? Math.max(0, diasEntre(new Date(Math.min(...abiertosList.map(t => new Date(t.created_at)))), Date.now()))
+      : null;
+
+    document.getElementById("kpiTotal").textContent = total;
+    document.getElementById("kpiAbiertos").textContent = abiertos;
+    document.getElementById("kpiEnProceso").textContent = enProceso;
+    document.getElementById("kpiResueltos").textContent = resueltos;
+    document.getElementById("kpiPromedioDias").textContent = promedioDias === null ? "—" : promedioDias;
+    document.getElementById("kpiMasAntiguo").textContent = masAntiguo === null ? "—" : masAntiguo;
+  }
+
+  function renderTypeDistribution(tickets, ticketTypesByName) {
+    const total = tickets.length;
+    const types = Object.values(ticketTypesByName);
+    const body = document.getElementById("typeDistributionBody");
+    if (!total || !types.length) {
+      body.innerHTML = `<tr><td colspan="3" class="py-6 text-center text-slate-400">Sin tickets todavía.</td></tr>`;
+      return;
+    }
+    body.innerHTML = types.map(type => {
+      const count = tickets.filter(t => t.ticket_type_id === type.id).length;
+      const pct = total ? Math.round((count / total) * 1000) / 10 : 0;
+      return `
+        <tr class="border-b border-slate-50 last:border-0">
+          <td class="py-2 text-slate-700">${type.name}</td>
+          <td class="py-2 text-right font-semibold text-brand-dark">${count}</td>
+          <td class="py-2 text-right text-slate-500">${pct}%</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  const ESTADO_DOT = {
+    "Abierto": "bg-red-400", "Pendiente": "bg-amber-400", "En progreso": "bg-blue-400",
+    "Resuelto": "bg-emerald-500", "Cerrado": "bg-slate-400", "Asignado": "bg-emerald-500", "Negado": "bg-red-400"
+  };
+
+  function renderStatusDistribution(tickets) {
+    const counts = {};
+    tickets.forEach(t => { counts[t.estado] = (counts[t.estado] || 0) + 1; });
+    const body = document.getElementById("statusDistributionBody");
+    const estados = Object.keys(counts);
+    if (!estados.length) {
+      body.innerHTML = `<tr><td colspan="2" class="py-6 text-center text-slate-400">Sin tickets todavía.</td></tr>`;
+      return;
+    }
+    body.innerHTML = estados.map(estado => `
+      <tr class="border-b border-slate-50 last:border-0">
+        <td class="py-2 text-slate-700"><span class="mr-2 inline-block h-2.5 w-2.5 rounded-full ${ESTADO_DOT[estado] || "bg-slate-400"}"></span>${estado}</td>
+        <td class="py-2 text-right font-semibold text-brand-dark">${counts[estado]}</td>
+      </tr>
+    `).join("");
+  }
+
+  if (window.ChartDataLabels) Chart.register(ChartDataLabels);
+
+  const DATALABEL_INK = { color: "#52514e", font: { weight: "bold", size: 11 } };
+
+  function renderIncidentChart(tickets, ticketTypesByName) {
+    const reporteType = ticketTypesByName["Reporte de falla"];
+    const reportes = reporteType ? tickets.filter(t => t.ticket_type_id === reporteType.id) : [];
+
+    const labels = [...INCIDENT_TYPES, "Sin clasificar"];
+    const counts = labels.map(label =>
+      reportes.filter(t => (t.incidente_tipo || "Sin clasificar") === label).length
+    );
+    const total = counts.reduce((a, b) => a + b, 0);
+    document.getElementById("incidentChartCaption").textContent =
+      total ? `${total} reporte${total === 1 ? "" : "s"} de falla en total` : "Sin reportes de falla todavía";
+
+    new Chart(document.getElementById("incidentChart"), {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          data: counts,
+          backgroundColor: "#2a5298",
+          borderRadius: 4,
+          maxBarThickness: 22
+        }]
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { right: 20 } },
+        plugins: {
+          legend: { display: false },
+          datalabels: { ...DATALABEL_INK, anchor: "end", align: "end", formatter: v => v }
+        },
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#e1e0d9" } },
+          y: { grid: { display: false }, ticks: { autoSkip: false } }
+        }
+      }
+    });
+  }
+
+  function renderFleetChart(entities) {
+    const counts = {};
+    entities.forEach(e => {
+      const estado = (e.atributos || {}).estado || "Sin estado";
+      counts[estado] = (counts[estado] || 0) + 1;
+    });
+    const labels = Object.keys(counts);
+    const colors = labels.map(l => l === "Activo" ? "#27ae60" : l === "Inactivo" ? "#94a3b8" : "#eda100");
+    const total = entities.length;
+    document.getElementById("fleetChartCaption").textContent =
+      total ? `${total} vehículo${total === 1 ? "" : "s"} en el inventario` : "Sin vehículos registrados todavía";
+
+    new Chart(document.getElementById("fleetChart"), {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          data: labels.map(l => counts[l]),
+          backgroundColor: colors,
+          borderRadius: 4,
+          maxBarThickness: 48
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 24 } },
+        plugins: {
+          legend: { display: false },
+          datalabels: { ...DATALABEL_INK, anchor: "end", align: "end", formatter: v => v }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#e1e0d9" } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  (async function init() {
+    const dept = await requireSession();
+    if (!dept) return;
+    renderNav("dashboard", dept);
+
+    const [ticketsRes, entitiesRes] = await Promise.all([
+      fetch("/api/admin/tickets"),
+      fetch("/api/admin/entities")
+    ]);
+    const ticketsData = await ticketsRes.json();
+    const entitiesData = await entitiesRes.json();
+
+    const ticketTypesByName = {};
+    (ticketsData.ticket_types || []).forEach(t => ticketTypesByName[t.name] = t);
+    const tickets = ticketsData.tickets || [];
+    const entities = entitiesData.entities || [];
+
+    renderKpis(tickets);
+    renderAlerts(tickets, ticketTypesByName);
+    renderTypeDistribution(tickets, ticketTypesByName);
+    renderStatusDistribution(tickets);
+    renderIncidentChart(tickets, ticketTypesByName);
+    renderFleetChart(entities);
+  })();
+</script>
+</body>
+</html>

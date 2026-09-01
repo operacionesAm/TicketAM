@@ -6,7 +6,10 @@ proceso (se pierde al reiniciar el servidor) para simular creación y cambios
 de estatus.
 """
 
-DEMO_DEPARTMENT = {"id": "demo-flota", "slug": "flota", "name": "Flota"}
+DEMO_DEPARTMENT = {
+    "id": "demo-flota", "slug": "flota", "name": "Flota",
+    "notification_email": None, "google_refresh_token": None, "google_connected_email": None,
+}
 
 DEMO_TYPE_REPORTE = {
     "id": "demo-reporte",
@@ -39,10 +42,10 @@ DEMO_ENTITIES = [
 ]
 
 DEMO_TICKETS = [
-    {"id": "demo-1", "folio": "TKT-8F42A1C0", "department_id": "demo-flota", "ticket_type_id": "demo-reporte", "entity_id": "demo-veh-1", "estado": "En progreso", "solicitante_nombre": "Mariana López", "solicitante_email": "mariana@grupoam.com", "created_at": "2026-08-28T08:40:00Z", "campos": {"descripcion": "La unidad presenta ruido en el eje delantero."}, "incidente_tipo": "Falla / Problema", "prioridad": "Media"},
-    {"id": "demo-2", "folio": "TKT-29D77B13", "department_id": "demo-flota", "ticket_type_id": "demo-reporte", "entity_id": "demo-veh-2", "estado": "Abierto", "solicitante_nombre": "Luis Hernández", "solicitante_email": "luis@grupoam.com", "created_at": "2026-08-28T07:15:00Z", "campos": {"descripcion": "No enciende el tablero."}, "incidente_tipo": None, "prioridad": None},
-    {"id": "demo-3", "folio": "TKT-0BC912E4", "department_id": "demo-flota", "ticket_type_id": "demo-reporte", "entity_id": "demo-veh-3", "estado": "Resuelto", "solicitante_nombre": "Ana Torres", "solicitante_email": "ana@grupoam.com", "created_at": "2026-08-27T16:20:00Z", "campos": {"descripcion": "Fuga de aceite detectada."}, "incidente_tipo": "Mantenimiento Correctivo", "prioridad": "Alta"},
-    {"id": "demo-4", "folio": "TKT-5A19E6D2", "department_id": "demo-flota", "ticket_type_id": "demo-asignacion", "entity_id": "demo-veh-1", "estado": "Asignado", "solicitante_nombre": "Carlos Ruiz", "solicitante_email": "carlos@grupoam.com", "created_at": "2026-08-20T09:05:00Z", "campos": {"proposito": "Distribución Centro"}, "incidente_tipo": None, "prioridad": None},
+    {"id": "demo-1", "folio": "TKT-8F42A1C0", "department_id": "demo-flota", "ticket_type_id": "demo-reporte", "entity_id": "demo-veh-1", "estado": "En progreso", "solicitante_nombre": "Mariana López", "solicitante_email": "mariana@grupoam.com", "created_at": "2026-08-28T08:40:00Z", "resolved_at": None, "campos": {"descripcion": "La unidad presenta ruido en el eje delantero.", "numero_nomina": "10432"}, "incidente_tipo": "Falla / Problema", "prioridad": "Media", "responsable_nombre": None},
+    {"id": "demo-2", "folio": "TKT-29D77B13", "department_id": "demo-flota", "ticket_type_id": "demo-reporte", "entity_id": "demo-veh-2", "estado": "Abierto", "solicitante_nombre": "Luis Hernández", "solicitante_email": "luis@grupoam.com", "created_at": "2026-08-28T07:15:00Z", "resolved_at": None, "campos": {"descripcion": "No enciende el tablero.", "numero_nomina": "10218"}, "incidente_tipo": None, "prioridad": None, "responsable_nombre": None},
+    {"id": "demo-3", "folio": "TKT-0BC912E4", "department_id": "demo-flota", "ticket_type_id": "demo-reporte", "entity_id": "demo-veh-3", "estado": "Resuelto", "solicitante_nombre": "Ana Torres", "solicitante_email": "ana@grupoam.com", "created_at": "2026-08-27T16:20:00Z", "resolved_at": "2026-08-27T18:45:00Z", "campos": {"descripcion": "Fuga de aceite detectada.", "numero_nomina": "10087"}, "incidente_tipo": "Mantenimiento Correctivo", "prioridad": "Alta", "responsable_nombre": "Jorge Peña"},
+    {"id": "demo-4", "folio": "TKT-5A19E6D2", "department_id": "demo-flota", "ticket_type_id": "demo-asignacion", "entity_id": "demo-veh-1", "estado": "Asignado", "solicitante_nombre": "Carlos Ruiz", "solicitante_email": "carlos@grupoam.com", "created_at": "2026-08-20T09:05:00Z", "resolved_at": "2026-08-20T09:30:00Z", "campos": {"proposito": "Distribución Centro", "numero_nomina": "10510"}, "incidente_tipo": None, "prioridad": None, "responsable_nombre": "Jorge Peña"},
 ]
 
 # Un evento "creado" por cada ticket demo (igual que inserta public.py al

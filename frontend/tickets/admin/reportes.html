@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reportes individuales | TicketAM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT: '#2a5298', dark: '#1e3c72' },
+          accent: '#27ae60'
+        }
+      }
+    }
+  }
+</script>
+</head>
+<body class="min-h-screen bg-slate-100 font-sans text-slate-800">
+
+  <div id="adminNav"></div>
+
+  <div class="mx-auto max-w-5xl px-5 py-6 pb-16">
+    <a href="/admin/dashboard" class="mb-4 inline-block text-sm font-semibold text-brand underline">‹ Dashboard</a>
+    <h1 class="mb-4 text-xl font-bold text-brand-dark">Reportes individuales</h1>
+
+    <!-- PICKER -->
+    <div id="pickerView">
+      <p class="mb-4 text-sm text-slate-500">Elige un vehículo para ver sus tickets y su historial.</p>
+      <div class="mb-4 flex flex-wrap items-center gap-3">
+        <input id="vehicleSearch" type="text" placeholder="Buscar por placa, marca, modelo o razón social…" class="min-w-[240px] flex-1 rounded-lg border-2 border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand">
+        <span id="vehicleCount" class="text-sm text-slate-500"></span>
+      </div>
+      <div id="vehicleList" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+    </div>
+
+    <!-- DETALLE -->
+    <div id="detailView" class="hidden">
+      <a href="/admin/reportes" class="mb-4 inline-block text-sm font-semibold text-brand underline">‹ Elegir otro vehículo</a>
+      <div id="vehicleHeader" class="mb-4 rounded-2xl bg-white p-5 shadow-sm"></div>
+
+      <div id="vehicleStats" class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4"></div>
+
+      <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Tickets de esta unidad</h2>
+      <div id="vehicleTickets" class="mb-8 space-y-2.5"></div>
+
+      <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Historial de eventos</h2>
+      <div id="vehicleTimeline"></div>
+    </div>
+  </div>
+
+<script src="/tickets/admin/admin-shared.js"></script>
+<script>
+  let entities = [];
+
+  async function init() {
+    const dept = await requireSession();
+    if (!dept) return;
+    renderNav("reportes", dept);
+
+    const response = await fetch("/api/admin/entities");
+    const data = await response.json();
+    entities = data.entities || [];
+
+    const entityId = new URLSearchParams(location.search).get("entity_id");
+    if (entityId) {
+      await showDetail(entityId);
+    } else {
+      showPicker();
+    }
+  }
+
+  function showPicker() {
+    document.getElementById("pickerView").classList.remove("hidden");
+    document.getElementById("detailView").classList.add("hidden");
+    initVehiclePicker({
+      entities,
+      searchEl: document.getElementById("vehicleSearch"),
+      listEl: document.getElementById("vehicleList"),
+      countEl: document.getElementById("vehicleCount"),
+      hrefFor: e => `/admin/reportes?entity_id=${e.id}`
+    });
+  }
+
+  async function showDetail(entityId) {
+    document.getElementById("pickerView").classList.add("hidden");
+    document.getElementById("detailView").classList.remove("hidden");
+
+    const entity = entities.find(e => e.id === entityId);
+    if (!entity) {
+      document.getElementById("vehicleHeader").innerHTML = `<p class="text-slate-500">Vehículo no encontrado.</p>`;
+      document.getElementById("vehicleStats").innerHTML = "";
+      document.getElementById("vehicleTickets").innerHTML = "";
+      document.getElementById("vehicleTimeline").innerHTML = "";
+      return;
+    }
+
+    const a = entity.atributos || {};
+    document.getElementById("vehicleHeader").innerHTML = `
+      <div class="font-mono text-lg font-bold text-brand-dark">${entity.codigo}</div>
+      <div class="text-sm text-slate-500">${[a.marca, a.modelo].filter(Boolean).join(" ") || entity.nombre || "—"}</div>
+    `;
+
+    const [ticketsRes, eventsRes] = await Promise.all([
+      fetch("/api/admin/tickets"),
+      fetch(`/api/admin/events?entity_id=${entityId}`)
+    ]);
+    const ticketsData = await ticketsRes.json();
+    const eventsData = await eventsRes.json();
+    const tickets = (ticketsData.tickets || []).filter(t => t.entity_id === entityId);
+    renderVehicleStats(tickets);
+    renderTicketsList(tickets);
+    renderTimeline(eventsData.events || []);
+  }
+
+  const ESTADOS_FINALES = new Set(["Resuelto", "Cerrado", "Asignado", "Negado"]);
+
+  function renderVehicleStats(tickets) {
+    const total = tickets.length;
+    const abiertos = tickets.filter(t => !ESTADOS_FINALES.has(t.estado)).length;
+    const resueltosConTiempo = tickets.filter(t => t.resolved_at);
+    const promedioDias = resueltosConTiempo.length
+      ? Math.round(resueltosConTiempo.reduce((sum, t) => sum + (new Date(t.resolved_at) - new Date(t.created_at)) / 86400000, 0) / resueltosConTiempo.length * 10) / 10
+      : null;
+    const ultimoReporte = total ? tickets.reduce((latest, t) => new Date(t.created_at) > new Date(latest.created_at) ? t : latest, tickets[0]) : null;
+
+    const stats = [
+      { label: "Total de reportes", value: total },
+      { label: "Abiertos actualmente", value: abiertos },
+      { label: "Prom. días de solución", value: promedioDias === null ? "—" : promedioDias },
+      { label: "Último reporte", value: ultimoReporte ? formatDate(ultimoReporte.created_at) : "—" }
+    ];
+    document.getElementById("vehicleStats").innerHTML = stats.map(s => `
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div class="text-xl font-bold text-brand-dark">${s.value}</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">${s.label}</div>
+      </div>
+    `).join("");
+  }
+
+  function renderTicketsList(tickets) {
+    const el = document.getElementById("vehicleTickets");
+    if (!tickets.length) {
+      el.innerHTML = `<p class="text-sm text-slate-400">Sin tickets registrados para esta unidad.</p>`;
+      return;
+    }
+    el.innerHTML = tickets.map(t => `
+      <div class="rounded-xl bg-white p-3.5 shadow-sm">
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-xs font-bold text-slate-400">${t.folio}</span>
+          <span class="text-xs font-semibold text-slate-500">${t.estado}</span>
+        </div>
+        <div class="mt-1 text-sm text-slate-600">${(t.campos && (t.campos.descripcion || t.campos.proposito)) || ""}</div>
+        <div class="mt-1 text-[11px] text-slate-400">${formatDate(t.created_at)}</div>
+      </div>
+    `).join("");
+  }
+
+  function renderTimeline(events) {
+    const el = document.getElementById("vehicleTimeline");
+    if (!events.length) {
+      el.innerHTML = `<p class="text-sm text-slate-400">Sin eventos registrados.</p>`;
+      return;
+    }
+    el.innerHTML = events.map(e => `
+      <div class="border-l-2 border-brand/30 pl-3.5 pb-4">
+        <div class="text-xs font-semibold text-brand-dark">${e.accion}${e.estado_nuevo ? " → " + e.estado_nuevo : ""}</div>
+        ${e.comentario ? `<div class="mt-0.5 text-sm text-slate-600">${e.comentario}</div>` : ""}
+        <div class="mt-0.5 text-[11px] text-slate-400">${formatDate(e.created_at)}</div>
+      </div>
+    `).join("");
+  }
+
+  init();
+</script>
+</body>
+</html>

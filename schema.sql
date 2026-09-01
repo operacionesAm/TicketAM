@@ -5,8 +5,15 @@ create table if not exists departments (
   slug text unique not null,
   name text not null,
   admin_passcode_hash text,
+  notification_email text,
+  google_refresh_token text,
+  google_connected_email text,
   created_at timestamptz not null default now()
 );
+
+alter table departments add column if not exists notification_email text;
+alter table departments add column if not exists google_refresh_token text;
+alter table departments add column if not exists google_connected_email text;
 
 create table if not exists department_members (
   department_id uuid references departments(id) on delete cascade,
@@ -47,12 +54,14 @@ create table if not exists tickets (
   incidente_tipo text,
   prioridad text check (prioridad is null or prioridad in ('Alta', 'Media', 'Baja')),
   responsable_id uuid references auth.users(id) on delete set null,
+  responsable_nombre text,
   created_at timestamptz not null default now(),
   resolved_at timestamptz
 );
 
 alter table tickets add column if not exists incidente_tipo text;
 alter table tickets add column if not exists prioridad text;
+alter table tickets add column if not exists responsable_nombre text;
 
 create table if not exists ticket_events (
   id uuid primary key default gen_random_uuid(),
