@@ -123,6 +123,17 @@ Esto levanta la API en `http://127.0.0.1:5000`. Sin credenciales de Supabase cor
 5. Fija la contraseña de administrador de cada departamento (8 dígitos): desde `backend/`, `python scripts/set_passcode.py flota 12345678`.
 6. Si tienes un inventario de vehículos en `vehiculos.json` (raíz del repo, con `placa`, `marca`, `modelo`, `tipo`, `año`, `estado`, `departamento`, `combustible`), impórtalo con `python scripts/import_vehiculos.py` — es idempotente, seguro de correr varias veces.
 
+## Imprimir QR en lote (Inventario)
+
+En `/admin/inventario`, el botón **"🖨️ Imprimir PDF"** activa un modo de selección
+(checkboxes en la tabla y en la cuadrícula, con "Seleccionar todos" / "Deseleccionar
+todos" — la selección se conserva al cambiar entre Lista y Cuadrícula) y genera un PDF
+con los vehículos marcados: 4 por página (2×2), cada uno con su QR (el mismo con logo
+que ya se genera) y sus datos debajo (placa, marca/modelo, tipo, año, estado, razón
+social, combustible), con guías de corte — listo para imprimir y pegar en cada unidad.
+Se arma en el navegador con `jsPDF` (CDN, sin dependencia nueva en el backend);
+descarga las imágenes de QR ya generadas vía `GET /api/admin/entities/{id}/qr`.
+
 ## Notificaciones por correo
 
 Cuando llega un ticket nuevo, el backend puede avisar por correo al departamento

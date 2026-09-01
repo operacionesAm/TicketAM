@@ -17,6 +17,7 @@
     }
   }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 font-sans text-slate-800">
 
@@ -35,7 +36,16 @@
         <button id="viewBtnGrid" onclick="switchInventoryView('grid')">🔲 Cuadrícula</button>
         <button id="viewBtnLista" onclick="switchInventoryView('lista')">📃 Lista</button>
       </div>
+      <button id="printModeBtn" class="rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-brand hover:text-brand" onclick="togglePrintMode()">🖨️ Imprimir PDF</button>
       <button class="rounded-lg bg-gradient-to-br from-brand to-brand-dark px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-brand/25" onclick="startCreate()">+ Agregar vehículo</button>
+    </div>
+
+    <div id="printToolbar" class="mb-4 hidden flex-wrap items-center gap-3 rounded-2xl border-2 border-brand/20 bg-brand/5 px-4 py-3">
+      <span id="printSelectedCount" class="text-sm font-bold text-brand-dark">0 seleccionados</span>
+      <button class="text-xs font-semibold text-brand underline" onclick="selectAllForPrint()">Seleccionar todos</button>
+      <button class="text-xs font-semibold text-brand underline" onclick="selectNoneForPrint()">Deseleccionar todos</button>
+      <button id="exportPdfBtn" class="ml-auto rounded-lg bg-accent px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700" onclick="exportSelectedToPdf()">Exportar PDF</button>
+      <button class="rounded-lg border-2 border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600" onclick="togglePrintMode()">Cancelar</button>
     </div>
 
     <div class="mb-4 flex flex-wrap items-center gap-3">
@@ -108,6 +118,7 @@
       <table class="w-full min-w-[720px] text-left text-sm">
         <thead>
           <tr class="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+            <th id="tableSelectHeader" class="hidden px-4 py-3"></th>
             <th class="px-4 py-3">Placa</th>
             <th class="px-4 py-3">Tipo</th>
             <th class="px-4 py-3">Marca / Modelo</th>
@@ -140,6 +151,8 @@
   let entities = [];
   let editingEntityId = null;
   let inventoryView = "lista";
+  let printMode = false;
+  let selectedForPrint = new Set();
 
   const VIEW_BTN_ACTIVE = ["rounded-lg", "px-4", "py-2.5", "text-sm", "font-bold", "text-white", "bg-gradient-to-br", "from-brand", "to-brand-dark", "shadow-md", "shadow-brand/25"];
   const VIEW_BTN_INACTIVE = ["rounded-lg", "px-4", "py-2.5", "text-sm", "font-bold", "text-slate-500", "bg-white", "hover:text-brand"];
@@ -230,14 +243,18 @@
   function renderEntitiesTable(filtered) {
     const body = document.getElementById("entitiesTableBody");
     if (!filtered.length) {
-      body.innerHTML = `<tr><td colspan="8" class="px-4 py-10 text-center text-slate-400">Sin vehículos que coincidan.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="${printMode ? 9 : 8}" class="px-4 py-10 text-center text-slate-400">Sin vehículos que coincidan.</td></tr>`;
       return;
     }
     body.innerHTML = filtered.map(e => {
       const a = e.atributos || {};
       const estadoClass = a.estado === "Inactivo" ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-800";
+      const checkboxCell = printMode
+        ? `<td class="px-4 py-3"><input type="checkbox" class="h-4 w-4" ${selectedForPrint.has(e.id) ? "checked" : ""} onchange="toggleSelectedForPrint('${e.id}')"></td>`
+        : "";
       return `
         <tr class="border-b border-slate-50 last:border-0 hover:bg-slate-50">
+          ${checkboxCell}
           <td class="px-4 py-3 font-mono font-bold text-brand-dark">${e.codigo}</td>
           <td class="px-4 py-3 text-slate-600">${a.tipo || "—"}</td>
           <td class="px-4 py-3 text-slate-600">${[a.marca, a.modelo].filter(Boolean).join(" ") || e.nombre || "—"}</td>
@@ -264,8 +281,12 @@
     grid.innerHTML = filtered.map(e => {
       const a = e.atributos || {};
       const estadoClass = a.estado === "Inactivo" ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-800";
+      const checkbox = printMode
+        ? `<input type="checkbox" class="absolute left-3 top-3 h-5 w-5" ${selectedForPrint.has(e.id) ? "checked" : ""} onchange="toggleSelectedForPrint('${e.id}')">`
+        : "";
       return `
-        <div class="rounded-2xl bg-white p-4 text-center shadow-sm">
+        <div class="relative rounded-2xl bg-white p-4 text-center shadow-sm">
+          ${checkbox}
           <img src="/api/admin/entities/${e.id}/qr" loading="lazy" alt="QR de ${e.codigo}" class="mx-auto mb-3 h-36 w-36 rounded-lg border-2 border-slate-100 object-contain">
           <div class="font-mono text-sm font-bold text-brand-dark">${e.codigo}</div>
           <div class="mt-1 text-sm text-slate-600">${[a.marca, a.modelo].filter(Boolean).join(" ") || e.nombre || "—"}</div>
@@ -398,6 +419,135 @@
   function viewQr(entityId, codigo) {
     const url = `/api/admin/entities/${entityId}/qr`;
     showQrModal(`QR de ${codigo}`, url, codigo);
+  }
+
+  function togglePrintMode() {
+    printMode = !printMode;
+    selectedForPrint.clear();
+    document.getElementById("printToolbar").classList.toggle("hidden", !printMode);
+    document.getElementById("printToolbar").classList.toggle("flex", printMode);
+    document.getElementById("tableSelectHeader").classList.toggle("hidden", !printMode);
+    document.getElementById("printModeBtn").className = printMode
+      ? "rounded-lg bg-gradient-to-br from-brand to-brand-dark px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-brand/25"
+      : "rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-brand hover:text-brand";
+    updatePrintSelectedCount();
+    renderEntities();
+  }
+
+  function toggleSelectedForPrint(entityId) {
+    if (selectedForPrint.has(entityId)) {
+      selectedForPrint.delete(entityId);
+    } else {
+      selectedForPrint.add(entityId);
+    }
+    updatePrintSelectedCount();
+  }
+
+  function selectAllForPrint() {
+    filteredEntities().forEach(e => selectedForPrint.add(e.id));
+    updatePrintSelectedCount();
+    renderEntities();
+  }
+
+  function selectNoneForPrint() {
+    selectedForPrint.clear();
+    updatePrintSelectedCount();
+    renderEntities();
+  }
+
+  function updatePrintSelectedCount() {
+    const count = selectedForPrint.size;
+    document.getElementById("printSelectedCount").textContent = `${count} seleccionado${count === 1 ? "" : "s"}`;
+  }
+
+  function fetchImageAsDataUrl(url) {
+    return fetch(url)
+      .then(response => response.blob())
+      .then(blob => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }));
+  }
+
+  async function exportSelectedToPdf() {
+    if (!selectedForPrint.size) { alert("Selecciona al menos un vehículo."); return; }
+    const btn = document.getElementById("exportPdfBtn");
+    const textoOriginal = btn.textContent;
+    btn.textContent = "Generando…";
+    btn.disabled = true;
+
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const seleccionados = entities.filter(e => selectedForPrint.has(e.id));
+
+      const cols = 2, rows = 2;
+      const cellW = 95, cellH = 140;
+      const marginX = 10, marginY = 10;
+      const qrSize = 55;
+      const porPagina = cols * rows;
+
+      for (let i = 0; i < seleccionados.length; i++) {
+        const entity = seleccionados[i];
+        const posEnPagina = i % porPagina;
+        if (i > 0 && posEnPagina === 0) doc.addPage();
+
+        const col = posEnPagina % cols;
+        const row = Math.floor(posEnPagina / cols);
+        const x = marginX + col * cellW;
+        const y = marginY + row * cellH;
+
+        doc.setDrawColor(210);
+        doc.rect(x, y, cellW - 6, cellH - 6);
+
+        let qrDataUrl;
+        try {
+          qrDataUrl = await fetchImageAsDataUrl(`/api/admin/entities/${entity.id}/qr`);
+        } catch (e) {
+          qrDataUrl = null;
+        }
+
+        const centroX = x + (cellW - 6) / 2;
+        let textY = y + 10;
+
+        if (qrDataUrl) {
+          doc.addImage(qrDataUrl, "PNG", centroX - qrSize / 2, textY, qrSize, qrSize);
+          textY += qrSize + 8;
+        }
+
+        const a = entity.atributos || {};
+        doc.setFont(undefined, "bold");
+        doc.setFontSize(14);
+        doc.text(entity.codigo, centroX, textY, { align: "center" });
+        textY += 6;
+
+        doc.setFont(undefined, "normal");
+        doc.setFontSize(9);
+        const marcaModelo = [a.marca, a.modelo].filter(Boolean).join(" ") || entity.nombre || "";
+        const lineas = [
+          marcaModelo || null,
+          a.tipo ? `Tipo: ${a.tipo}` : null,
+          a.año ? `Año: ${a.año}` : null,
+          a.estado ? `Estado: ${a.estado}` : null,
+          a.departamento ? `Razón social: ${a.departamento}` : null,
+          a.combustible ? `Combustible: ${a.combustible}` : null
+        ].filter(Boolean);
+        lineas.forEach(linea => {
+          doc.text(linea, centroX, textY, { align: "center" });
+          textY += 5;
+        });
+      }
+
+      doc.save(`vehiculos-qr-${new Date().toISOString().slice(0, 10)}.pdf`);
+      togglePrintMode();
+    } catch (err) {
+      alert("No se pudo generar el PDF: " + err.message);
+    } finally {
+      btn.textContent = textoOriginal;
+      btn.disabled = false;
+    }
   }
 
   (async function init() {
