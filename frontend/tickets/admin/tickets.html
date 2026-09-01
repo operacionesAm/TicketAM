@@ -25,6 +25,7 @@
   <div class="mx-auto max-w-5xl px-5 py-6 pb-16">
     <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div class="flex gap-2">
+        <button id="typeBtnTodos" onclick="switchTicketType('todos')">📋 Todos</button>
         <button id="typeBtnReporte" onclick="switchTicketType('reporte')">🎫 Reportes</button>
         <button id="typeBtnAsignacion" onclick="switchTicketType('asignacion')">🚗 Asignaciones</button>
       </div>
@@ -160,6 +161,7 @@
   function switchTicketType(type) {
     currentTicketType = type;
     listStatusFilter = "Todos";
+    document.getElementById("typeBtnTodos").className = (type === "todos" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
     document.getElementById("typeBtnReporte").className = (type === "reporte" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
     document.getElementById("typeBtnAsignacion").className = (type === "asignacion" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
     render();
@@ -181,6 +183,35 @@
     return ticketTypesByName[name] || null;
   }
 
+  // "Todos" combina Reportes + Asignaciones. Se usa en Lista y Archivo; el
+  // Kanban se queda por tipo porque sus columnas son los estados de un solo
+  // tipo (mezclarlos no tiene un dueño claro para el drag-and-drop).
+  function currentTicketTypeIds() {
+    if (currentTicketType === "todos") {
+      return Object.values(ticketTypesByName).map(t => t.id);
+    }
+    const type = currentType();
+    return type ? [type.id] : [];
+  }
+
+  function estadosForTicket(ticket) {
+    const type = Object.values(ticketTypesByName).find(t => t.id === ticket.ticket_type_id);
+    return type ? type.estados : [];
+  }
+
+  function combinedEstados() {
+    const all = Object.values(ticketTypesByName).flatMap(t => t.estados);
+    return [...new Set(all)];
+  }
+
+  function tipoBadgeHtml(ticket) {
+    if (currentTicketType !== "todos") return "";
+    const type = Object.values(ticketTypesByName).find(t => t.id === ticket.ticket_type_id);
+    if (!type) return "";
+    const esReporte = type.name === "Reporte de falla";
+    return `<span class="rounded-full ${esReporte ? "bg-amber-100 text-amber-800" : "bg-sky-100 text-sky-800"} px-2 py-0.5 text-[11px] font-bold">${esReporte ? "🎫 Reporte" : "🚗 Asignación"}</span>`;
+  }
+
   function render() {
     if (currentView === "kanban") {
       renderBoard();
@@ -193,6 +224,10 @@
 
   function renderBoard() {
     const board = document.getElementById("kanbanBoard");
+    if (currentTicketType === "todos") {
+      board.innerHTML = '<div class="py-16 text-center text-slate-400">El Kanban es por tipo de ticket — elige Reportes o Asignaciones. "Todos" está disponible en Lista y Archivo.</div>';
+      return;
+    }
     const type = currentType();
     if (!type) {
       board.innerHTML = '<div class="py-16 text-center text-slate-400">Este departamento todavía no tiene configurado este tipo de ticket.</div>';
@@ -214,7 +249,8 @@
   }
 
   function classifySelects(ticket) {
-    if (currentTicketType !== "reporte") return "";
+    const reporteType = ticketTypesByName["Reporte de falla"];
+    if (!reporteType || ticket.ticket_type_id !== reporteType.id) return "";
     return `
       <select class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px]" onchange="classifyTicket('${ticket.id}', 'incidente_tipo', this.value)">
         <option value="">Tipo de incidente…</option>
@@ -233,8 +269,9 @@
     const prioridadBadge = ticket.prioridad
       ? `<span class="rounded-full px-2 py-0.5 text-[11px] font-bold ${PRIORIDAD_CLASSES[ticket.prioridad]}">${ticket.prioridad}</span>`
       : "";
-    const classifyHtml = currentTicketType === "reporte"
-      ? `<div class="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5">${classifySelects(ticket)}</div>`
+    const classify = classifySelects(ticket);
+    const classifyHtml = classify
+      ? `<div class="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5">${classify}</div>`
       : "";
     return `
       <div class="kanban-card cursor-grab rounded-xl bg-white p-3.5 shadow-sm active:cursor-grabbing" draggable="true" data-ticket-id="${ticket.id}">
@@ -289,17 +326,18 @@
   }
 
   function renderList() {
-    const type = currentType();
+    const typeIds = currentTicketTypeIds();
     const filterBar = document.getElementById("statusFilterBar");
     const list = document.getElementById("ticketList");
-    if (!type) {
+    if (!typeIds.length) {
       filterBar.innerHTML = "";
       list.innerHTML = '<div class="py-16 text-center text-slate-400">Este departamento todavía no tiene configurado este tipo de ticket.</div>';
       return;
     }
 
-    const filtered = allTickets.filter(t => t.ticket_type_id === type.id && !isArchived(t));
-    const filters = ["Todos", ...type.estados];
+    const filtered = allTickets.filter(t => typeIds.includes(t.ticket_type_id) && !isArchived(t));
+    const estadosDisponibles = currentTicketType === "todos" ? combinedEstados() : currentType().estados;
+    const filters = ["Todos", ...estadosDisponibles];
     filterBar.innerHTML = filters.map(estado => {
       const count = estado === "Todos" ? filtered.length : filtered.filter(t => t.estado === estado).length;
       const active = listStatusFilter === estado;
@@ -314,7 +352,7 @@
       list.innerHTML = '<div class="py-16 text-center text-slate-400">Sin tickets para este filtro.</div>';
       return;
     }
-    list.innerHTML = visible.map(t => renderListRow(t, type.estados)).join("");
+    list.innerHTML = visible.map(t => renderListRow(t, estadosForTicket(t))).join("");
   }
 
   function renderListRow(ticket, estados) {
@@ -328,6 +366,7 @@
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
             <span class="font-mono text-[11px] font-bold text-slate-400">${ticket.folio}</span>
+            ${tipoBadgeHtml(ticket)}
             ${prioridadBadge}
           </div>
           <div class="mt-1 text-sm font-bold text-brand-dark">${ticket.solicitante_nombre}</div>
@@ -347,14 +386,14 @@
   }
 
   function renderArchive() {
-    const type = currentType();
+    const typeIds = currentTicketTypeIds();
     const list = document.getElementById("archiveList");
-    if (!type) {
+    if (!typeIds.length) {
       list.innerHTML = '<div class="py-16 text-center text-slate-400">Este departamento todavía no tiene configurado este tipo de ticket.</div>';
       return;
     }
     const archived = allTickets
-      .filter(t => t.ticket_type_id === type.id && isArchived(t))
+      .filter(t => typeIds.includes(t.ticket_type_id) && isArchived(t))
       .slice()
       .sort((a, b) => new Date(b.resolved_at) - new Date(a.resolved_at));
 
@@ -374,6 +413,7 @@
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
             <span class="font-mono text-[11px] font-bold text-slate-400">${ticket.folio}</span>
+            ${tipoBadgeHtml(ticket)}
             <span class="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">${ticket.estado}</span>
           </div>
           <div class="mt-1 text-sm font-bold text-brand-dark">${ticket.solicitante_nombre}</div>
