@@ -107,6 +107,24 @@
       </div>
     </div>
 
+    <!-- GRAFICAS 2 -->
+    <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Vehículos con más reportes</h2>
+        <p id="topVehiclesChartCaption" class="mb-3 text-xs text-slate-400">&nbsp;</p>
+        <div class="relative h-64 sm:h-72">
+          <canvas id="topVehiclesChart"></canvas>
+        </div>
+      </div>
+      <div class="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Reportes de falla por mes</h2>
+        <p id="monthlyChartCaption" class="mb-3 text-xs text-slate-400">&nbsp;</p>
+        <div class="relative h-64 sm:h-72">
+          <canvas id="monthlyChart"></canvas>
+        </div>
+      </div>
+    </div>
+
     <!-- TABLAS -->
     <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="rounded-2xl bg-white p-5 shadow-sm">
@@ -360,6 +378,105 @@
     });
   }
 
+  const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+  function ultimosMeses(n) {
+    const out = [];
+    const base = new Date();
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+      out.push({ year: d.getFullYear(), month: d.getMonth() });
+    }
+    return out;
+  }
+
+  function renderTopVehiclesChart(tickets, ticketTypesByName, entitiesById) {
+    const reporteType = ticketTypesByName["Reporte de falla"];
+    const reportes = reporteType ? tickets.filter(t => t.ticket_type_id === reporteType.id && t.entity_id) : [];
+
+    const counts = {};
+    reportes.forEach(t => { counts[t.entity_id] = (counts[t.entity_id] || 0) + 1; });
+
+    const top = Object.entries(counts)
+      .map(([entityId, count]) => ({ entity: entitiesById[entityId], count }))
+      .filter(row => row.entity)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+
+    document.getElementById("topVehiclesChartCaption").textContent = top.length
+      ? `Top ${top.length} vehículo${top.length === 1 ? "" : "s"} por cantidad de reportes de falla (fallas y siniestros incluidos)`
+      : "Sin reportes de falla todavía";
+
+    new Chart(document.getElementById("topVehiclesChart"), {
+      type: "bar",
+      data: {
+        labels: top.map(row => row.entity.codigo),
+        datasets: [{
+          data: top.map(row => row.count),
+          backgroundColor: "#c0392b",
+          borderRadius: 4,
+          maxBarThickness: 22
+        }]
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { right: 20 } },
+        plugins: {
+          legend: { display: false },
+          datalabels: { ...DATALABEL_INK, anchor: "end", align: "end", formatter: v => v }
+        },
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#e1e0d9" } },
+          y: { grid: { display: false }, ticks: { autoSkip: false } }
+        }
+      }
+    });
+  }
+
+  function renderMonthlyChart(tickets, ticketTypesByName) {
+    const reporteType = ticketTypesByName["Reporte de falla"];
+    const reportes = reporteType ? tickets.filter(t => t.ticket_type_id === reporteType.id) : [];
+
+    const meses = ultimosMeses(6);
+    const counts = meses.map(m => reportes.filter(t => {
+      const d = new Date(t.created_at);
+      return d.getFullYear() === m.year && d.getMonth() === m.month;
+    }).length);
+
+    const total = counts.reduce((a, b) => a + b, 0);
+    document.getElementById("monthlyChartCaption").textContent = total
+      ? `${total} reporte${total === 1 ? "" : "s"} de falla en los últimos ${meses.length} meses`
+      : "Sin reportes de falla todavía";
+
+    new Chart(document.getElementById("monthlyChart"), {
+      type: "bar",
+      data: {
+        labels: meses.map(m => `${MESES[m.month]} ${m.year}`),
+        datasets: [{
+          data: counts,
+          backgroundColor: "#2a5298",
+          borderRadius: 4,
+          maxBarThickness: 48
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 24 } },
+        plugins: {
+          legend: { display: false },
+          datalabels: { ...DATALABEL_INK, anchor: "end", align: "end", formatter: v => v }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#e1e0d9" } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
   (async function init() {
     const dept = await requireSession();
     if (!dept) return;
@@ -376,6 +493,8 @@
     (ticketsData.ticket_types || []).forEach(t => ticketTypesByName[t.name] = t);
     const tickets = ticketsData.tickets || [];
     const entities = entitiesData.entities || [];
+    const entitiesById = {};
+    entities.forEach(e => entitiesById[e.id] = e);
 
     renderKpis(tickets);
     renderAlerts(tickets, ticketTypesByName);
@@ -383,6 +502,8 @@
     renderStatusDistribution(tickets);
     renderIncidentChart(tickets, ticketTypesByName);
     renderFleetChart(entities);
+    renderTopVehiclesChart(tickets, ticketTypesByName, entitiesById);
+    renderMonthlyChart(tickets, ticketTypesByName);
   })();
 </script>
 </body>
