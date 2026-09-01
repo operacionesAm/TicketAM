@@ -13,6 +13,7 @@ from flask import Blueprint, jsonify, request
 from app.demo_data import DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
 from app.extensions import supabase
 from app.mailer import send_ticket_notification
+from app.photos import upload_photo
 
 public_bp = Blueprint("public", __name__)
 
@@ -64,15 +65,19 @@ def create_ticket(slug: str):
         return error("solicitante_email es requerido", 400)
     campos = payload.get("campos") or {}
     entity_id = payload.get("entity_id") or None
+    foto_base64 = payload.get("foto_base64") or None
 
     if not supabase:
         if slug != "flota":
             return error("Departamento no encontrado", 404)
+        if ticket_type_id == DEMO_TYPE_REPORTE["id"] and not entity_id:
+            return error("Un reporte de falla debe tener un vehículo asociado", 400)
         ticket = {
             "id": str(uuid4()),
             "folio": f"TKT-{uuid4().hex[:8].upper()}",
             "department_id": DEMO_DEPARTMENT["id"],
             "ticket_type_id": ticket_type_id,
+            "entity_id": entity_id,
             "estado": "Abierto",
             "solicitante_nombre": nombre,
             "solicitante_email": correo,
@@ -86,13 +91,27 @@ def create_ticket(slug: str):
     department_result = supabase.table("departments").select("id, name, notification_email, google_refresh_token").eq("slug", slug).single().execute()
     if not department_result.data:
         return error("Departamento no encontrado", 404)
+    department_id = department_result.data["id"]
+
+    type_result = supabase.table("ticket_types").select("name").eq("id", ticket_type_id).single().execute()
+    if not type_result.data:
+        return error("Tipo de ticket no encontrado", 404)
+    if type_result.data["name"] == "Reporte de falla" and not entity_id:
+        return error("Un reporte de falla debe tener un vehículo asociado", 400)
+
+    if foto_base64 and type_result.data["name"] == "Reporte de falla":
+        try:
+            campos["foto_path"] = upload_photo(supabase, department_id, foto_base64)
+        except Exception as exc:
+            print(f"[photos] No se pudo subir la foto del reporte: {exc}")
+
     record = {
         "ticket_type_id": ticket_type_id,
         "entity_id": entity_id,
         "solicitante_nombre": nombre,
         "solicitante_email": correo,
         "campos": campos,
-        "department_id": department_result.data["id"],
+        "department_id": department_id,
         "estado": "Abierto",
     }
     result = supabase.table("tickets").insert(record).execute()

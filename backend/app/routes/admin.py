@@ -20,6 +20,7 @@ from app import google_oauth
 from app.demo_data import DEMO_ADMIN_PASSCODES, DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_TICKET_EVENTS, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
 from app.extensions import supabase
 from app.mailer import send_observation_email
+from app.photos import download_photo
 from app.qr import entity_qr_url, generate_labeled_qr_png
 
 admin_bp = Blueprint("admin", __name__)
@@ -219,6 +220,31 @@ def admin_add_observacion(ticket_id: str):
         dept = supabase.table("departments").select("name, google_refresh_token").eq("id", department_id).single().execute()
         send_observation_email(dept.data or {}, current.data, comentario)
     return jsonify({"event": result.data[0]}), 201
+
+
+@admin_bp.get("/api/admin/tickets/<ticket_id>/foto")
+@require_admin
+def admin_ticket_foto(ticket_id: str):
+    department_id = session["department_id"]
+
+    if not supabase:
+        ticket = next((item for item in DEMO_TICKETS if item["id"] == ticket_id and item["department_id"] == department_id), None)
+        if not ticket:
+            return error("Ticket no encontrado", 404)
+        return error("Sin foto (modo demo)", 404)
+
+    current = supabase.table("tickets").select("campos, department_id").eq("id", ticket_id).single().execute()
+    if not current.data or current.data["department_id"] != department_id:
+        return error("Ticket no encontrado", 404)
+    foto_path = (current.data.get("campos") or {}).get("foto_path")
+    if not foto_path:
+        return error("Este ticket no tiene foto", 404)
+
+    try:
+        image_bytes = download_photo(supabase, foto_path)
+    except Exception:
+        return error("No se pudo cargar la foto", 404)
+    return Response(image_bytes, mimetype="image/jpeg")
 
 
 @admin_bp.get("/api/admin/entities")

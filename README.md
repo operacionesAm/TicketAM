@@ -22,6 +22,7 @@ backend/
     demo_data.py                    # datos de ejemplo cuando no hay Supabase configurado
     mailer.py                       # notificaciones por correo (SMTP y/o Google conectado)
     google_oauth.py                  # "Conectar con Google" — enviar como una cuenta @am.com.mx real
+    photos.py                        # comprime y sube/baja las fotos de reportes (Supabase Storage)
     qr.py                           # genera el QR de cada vehículo (con logo y leyenda)
     assets/logo-am.png               # logo usado en el QR impreso (copia de frontend/tickets/assets)
     routes/
@@ -58,7 +59,33 @@ En Tickets, además del toggle Kanban/Lista hay una tercera vista, **Archivo**: 
 un estado final (Resuelto, Cerrado, Asignado o Negado) sale de Kanban/Lista automáticamente
 5 días después de resuelto (`resolved_at`) y pasa a Archivo — mantiene el panel principal
 enfocado en lo activo sin perder el historial (nada se borra; es solo un filtro por fecha,
-calculado en el navegador, sin columna ni job nuevo).
+calculado en el navegador, sin columna ni job nuevo). Un cuarto tab, **Todos**, combina
+Reportes + Asignaciones en Lista y Archivo (el Kanban se queda por tipo, porque sus columnas
+son los estados de un solo tipo).
+
+## Reportes de falla: vehículo obligatorio y foto opcional
+
+Un reporte de falla (`POST /api/departments/{slug}/tickets` con el tipo "Reporte de falla")
+**siempre** debe traer `entity_id` — el backend lo rechaza con 400 si falta. Tiene sentido con
+el flujo del formulario público: para "Levantar ticket" siempre se elige o escanea un vehículo
+primero; solo "Pedir un vehículo" (Asignación) puede quedar sin vehículo, porque ahí es
+flota quien asigna la unidad después (a menos que sea alguien de Circulación que ya escaneó
+el QR de una unidad específica).
+
+El formulario de reporte también permite adjuntar una foto (`campos.foto_path` en el
+ticket). No importa el tamaño/calidad que suba el personal desde su celular: se reduce en
+el navegador antes de enviarla (canvas, máx. 1600px) y **otra vez** en el backend al
+recibirla (`app/photos.py`, PIL, máx. 1280px, JPEG calidad 70) — esa es la compresión que
+de verdad cuenta, la del navegador es solo para que la subida no sea pesada. Se guarda en
+**Supabase Storage** (bucket privado `reportes-fotos`), no en la base de datos — la tabla
+`tickets` solo guarda el path. Los admins la ven vía `GET /api/admin/tickets/{id}/foto`
+(requiere sesión, valida que el ticket sea de su departamento).
+
+El bucket `reportes-fotos` ya se creó (privado) en el Supabase de este proyecto. Si se
+monta un Supabase nuevo desde cero, hay que crearlo una vez — vía el dashboard
+(Storage → New bucket → "reportes-fotos", privado) o con
+`supabase.storage.create_bucket("reportes-fotos", options={"public": False})` usando el
+service role key.
 
 ## Arranque local
 
@@ -180,13 +207,14 @@ Un solo proyecto de Vercel apuntando a la raíz del repo. `vercel.json` ya defin
 ## API
 
 - `GET /api/departments/{slug}` — público. Tipos de ticket y catálogo de entidades (p. ej. vehículos) para armar el formulario. No incluye tickets.
-- `POST /api/departments/{slug}/tickets` — público. Crea un ticket y su evento `creado`.
+- `POST /api/departments/{slug}/tickets` — público. Crea un ticket y su evento `creado`. Rechaza (400) un "Reporte de falla" sin `entity_id`. Acepta `foto_base64` opcional (solo se procesa para reportes) — se comprime y sube a Storage, no se guarda el base64.
 - `POST /api/admin/login` / `POST /api/admin/logout` / `GET /api/admin/me` — sesión de administrador por contraseña.
 - `GET /api/admin/tickets` — requiere sesión. Tickets del departamento de la sesión activa.
 - `PATCH /api/admin/tickets/{ticket_id}/classify` — requiere sesión. Clasifica un ticket de tipo "Reporte de falla" (`incidente_tipo`, `prioridad`).
 - `PATCH /api/admin/tickets/{ticket_id}/status` — requiere sesión. Cambia el estado y registra el evento; solo sobre tickets del propio departamento.
 - `PATCH /api/admin/tickets/{ticket_id}/responsable` — requiere sesión. Asigna `responsable_nombre` (texto libre) y registra el evento.
 - `POST /api/admin/tickets/{ticket_id}/observaciones` — requiere sesión. Agrega una observación (evento `ticket_events` con `accion=observacion`); si `notificar_email` es `true`, se la envía por correo a `solicitante_email`.
+- `GET /api/admin/tickets/{ticket_id}/foto` — requiere sesión. Regresa la foto del reporte (JPEG) desde Supabase Storage, si tiene una.
 - `GET /api/admin/settings` / `PATCH /api/admin/settings` — requiere sesión. Lee/actualiza `notification_email` del departamento de la sesión (la lectura también regresa `google_connected_email`, si hay cuenta de Google conectada).
 - `GET /api/admin/google/connect` — requiere sesión. Redirige a Google para autorizar el envío de correo como esa cuenta.
 - `GET /api/admin/google/callback` — Google redirige aquí tras el consentimiento; guarda el refresh token y regresa a `/admin/configuracion`.
