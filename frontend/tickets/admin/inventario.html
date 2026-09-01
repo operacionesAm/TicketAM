@@ -483,10 +483,10 @@
       const doc = new jsPDF({ unit: "mm", format: "a4" });
       const seleccionados = entities.filter(e => selectedForPrint.has(e.id));
 
-      const cols = 2, rows = 2;
-      const cellW = 95, cellH = 140;
-      const marginX = 10, marginY = 10;
-      const qrSize = 55;
+      const cols = 2, rows = 3;
+      const cellW = 97, cellH = 93;
+      const marginX = 8, marginY = 8;
+      const qrSize = 48;
       const porPagina = cols * rows;
 
       for (let i = 0; i < seleccionados.length; i++) {
@@ -500,7 +500,7 @@
         const y = marginY + row * cellH;
 
         doc.setDrawColor(210);
-        doc.rect(x, y, cellW - 6, cellH - 6);
+        doc.rect(x, y, cellW - 4, cellH - 4);
 
         let qrDataUrl;
         try {
@@ -509,27 +509,27 @@
           qrDataUrl = null;
         }
 
-        const centroX = x + (cellW - 6) / 2;
-        let textY = y + 10;
+        const centroX = x + (cellW - 4) / 2;
+        let textY = y + 5;
 
         if (qrDataUrl) {
           doc.addImage(qrDataUrl, "PNG", centroX - qrSize / 2, textY, qrSize, qrSize);
-          textY += qrSize + 8;
+          textY += qrSize + 6;
         }
 
         const a = entity.atributos || {};
         doc.setFont(undefined, "bold");
-        doc.setFontSize(14);
+        doc.setFontSize(12);
         doc.text(entity.codigo, centroX, textY, { align: "center" });
-        textY += 6;
+        textY += 5;
 
         doc.setFont(undefined, "normal");
-        doc.setFontSize(9);
+        doc.setFontSize(8);
         const marcaModelo = [a.marca, a.modelo].filter(Boolean).join(" ") || entity.nombre || "";
         const lineas = [marcaModelo || null].filter(Boolean);
         lineas.forEach(linea => {
           doc.text(linea, centroX, textY, { align: "center" });
-          textY += 5;
+          textY += 4;
         });
       }
 
