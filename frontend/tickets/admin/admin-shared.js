@@ -33,12 +33,12 @@ function renderNav(activeKey, dept) {
     { key: "configuracion", label: "Configuración", href: "/admin/configuracion" }
   ];
   nav.innerHTML = `
-    <div class="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-br from-brand-dark to-brand px-6 py-5 text-white">
-      <div>
-        <h2 class="text-lg font-bold">${dept ? dept.name : "Panel"}</h2>
-        <div class="mt-0.5 text-xs text-blue-200">${dept ? "Departamento: " + dept.slug : ""}</div>
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-br from-brand-dark to-brand px-4 py-5 sm:px-6 text-white">
+      <div class="min-w-0">
+        <h2 class="truncate text-lg font-bold">${dept ? dept.name : "Panel"}</h2>
+        <div class="mt-0.5 truncate text-xs text-blue-200">${dept ? "Departamento: " + dept.slug : ""}</div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         ${links.map(l => `<a href="${l.href}" class="${(l.key === activeKey ? NAV_ACTIVE : NAV_INACTIVE).join(" ")}">${l.label}</a>`).join("")}
         <button class="rounded-lg border border-white/30 bg-white/15 px-4 py-2 text-sm font-semibold transition hover:bg-white/25" onclick="logout()">Cerrar sesión</button>
       </div>
