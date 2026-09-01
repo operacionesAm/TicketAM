@@ -67,6 +67,14 @@
         <img id="detailFoto" class="max-h-64 rounded-lg border-2 border-slate-100 object-contain">
       </div>
 
+      <div id="detailVehiculoWrap" class="mb-5 hidden">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Vehículo asignado</label>
+        <select id="detailVehiculoSelect" class="w-full rounded-lg border-2 border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand" onchange="assignVehiculo(detailTicketId, this.value)">
+          <option value="">Sin asignar</option>
+        </select>
+        <p class="mt-1 text-xs text-slate-400">Al asignar una unidad el ticket pasa a "Asignado" y se notifica por correo al solicitante.</p>
+      </div>
+
       <div class="mb-5">
         <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Responsable</label>
         <div class="flex gap-2">
@@ -161,6 +169,58 @@
     const vehiculo = vehiculoLabel(ticket);
     if (!vehiculo) return "";
     return `<span class="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-bold text-brand-dark">${vehiculo.placa}</span>`;
+  }
+
+  // Solo "Solicitud de vehículo" puede recibir la asignación de una unidad
+  // del inventario — "Reporte de falla" ya trae su vehículo desde que se crea.
+  function isAsignacionTicket(ticket) {
+    const type = ticketTypesByName["Solicitud de vehículo"];
+    return !!type && ticket.ticket_type_id === type.id;
+  }
+
+  // Activo = cualquier unidad que no esté explícitamente "Inactivo", mismo
+  // criterio que ya usa inventario.html para sus contadores y badges.
+  function activeEntities() {
+    return Object.values(entitiesById).filter(e => ((e.atributos || {}).estado) !== "Inactivo");
+  }
+
+  function vehiculoOptionsHtml(selectedEntityId) {
+    return activeEntities()
+      .slice()
+      .sort((a, b) => a.codigo.localeCompare(b.codigo))
+      .map(e => {
+        const a = e.atributos || {};
+        const label = [e.codigo, [a.marca, a.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" — ");
+        return `<option value="${e.id}" ${selectedEntityId === e.id ? "selected" : ""}>${label}</option>`;
+      }).join("");
+  }
+
+  function vehiculoPickerHtml(ticket) {
+    return `
+      <select class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-brand-dark" onchange="assignVehiculo('${ticket.id}', this.value)">
+        <option value="">🚗 Asignar vehículo…</option>
+        ${vehiculoOptionsHtml(ticket.entity_id)}
+      </select>
+    `;
+  }
+
+  async function assignVehiculo(ticketId, entityId) {
+    const ticket = allTickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    const response = await fetch(`/api/admin/tickets/${ticketId}/vehiculo`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entity_id: entityId || null })
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      alert(data.detail || "No se pudo asignar el vehículo.");
+    } else {
+      const data = await response.json();
+      Object.assign(ticket, data.ticket);
+    }
+    render();
+    if (detailTicketId === ticketId) openDetail(ticketId);
   }
 
   function fotoBadgeHtml(ticket) {
@@ -283,6 +343,9 @@
     const classifyHtml = classify
       ? `<div class="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5">${classify}</div>`
       : "";
+    const vehiculoHtml = isAsignacionTicket(ticket)
+      ? `<div class="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5">${vehiculoPickerHtml(ticket)}</div>`
+      : "";
     return `
       <div class="kanban-card cursor-grab rounded-xl bg-white p-3.5 shadow-sm active:cursor-grabbing" draggable="true" data-ticket-id="${ticket.id}">
         <div class="flex items-start justify-between gap-2">
@@ -294,6 +357,7 @@
         <div class="mt-1.5 flex items-center gap-1.5">${vehiculoBadgeHtml(ticket)}${fotoBadgeHtml(ticket)}</div>
         <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
         ${classifyHtml}
+        ${vehiculoHtml}
         <button class="mt-2.5 w-full rounded-md border border-slate-200 py-1 text-[11px] font-semibold text-brand hover:bg-slate-50" onclick="openDetail('${ticket.id}')">Ver detalle</button>
       </div>
     `;
@@ -387,6 +451,7 @@
         </div>
         <div class="flex w-full shrink-0 flex-col gap-1.5 sm:w-56">
           ${classifySelects(ticket)}
+          ${isAsignacionTicket(ticket) ? vehiculoPickerHtml(ticket) : ""}
           <select class="w-full rounded-full border-2 border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-brand-dark outline-none focus:border-brand" onchange="moveTicket('${ticket.id}', this.value)">
             ${estados.map(estado => `<option value="${estado}" ${ticket.estado === estado ? "selected" : ""}>${estado}</option>`).join("")}
           </select>
@@ -469,6 +534,14 @@
       fotoWrap.classList.remove("hidden");
     } else {
       fotoWrap.classList.add("hidden");
+    }
+
+    const vehiculoWrap = document.getElementById("detailVehiculoWrap");
+    if (isAsignacionTicket(ticket)) {
+      document.getElementById("detailVehiculoSelect").innerHTML = `<option value="">Sin asignar</option>${vehiculoOptionsHtml(ticket.entity_id)}`;
+      vehiculoWrap.classList.remove("hidden");
+    } else {
+      vehiculoWrap.classList.add("hidden");
     }
 
     document.getElementById("detailResponsable").value = ticket.responsable_nombre || "";

@@ -72,18 +72,26 @@ def create_ticket(slug: str):
             return error("Departamento no encontrado", 404)
         if ticket_type_id == DEMO_TYPE_REPORTE["id"] and not entity_id:
             return error("Un reporte de falla debe tener un vehículo asociado", 400)
+        # Una "Solicitud de vehículo" que ya trae entity_id vino de escanear el
+        # QR directamente (solo circulación tiene acceso físico a los QR sin
+        # tener antes un vehículo asignado) — se autoasigna sin pasar por
+        # revisión del admin. Ver create_ticket() para el mismo criterio en
+        # el branch de Supabase.
+        estado_inicial = "Asignado" if (ticket_type_id == DEMO_TYPE_ASIGNACION["id"] and entity_id) else "Abierto"
         ticket = {
             "id": str(uuid4()),
             "folio": f"TKT-{uuid4().hex[:8].upper()}",
             "department_id": DEMO_DEPARTMENT["id"],
             "ticket_type_id": ticket_type_id,
             "entity_id": entity_id,
-            "estado": "Abierto",
+            "estado": estado_inicial,
             "solicitante_nombre": nombre,
             "solicitante_email": correo,
             "created_at": now(),
             "campos": campos,
         }
+        if estado_inicial == "Asignado":
+            ticket["resolved_at"] = now()
         DEMO_TICKETS.insert(0, ticket)
         send_ticket_notification(DEMO_DEPARTMENT, ticket)
         return jsonify(ticket), 201
@@ -105,6 +113,12 @@ def create_ticket(slug: str):
         except Exception as exc:
             print(f"[photos] No se pudo subir la foto del reporte: {exc}")
 
+    # Una "Solicitud de vehículo" que ya trae entity_id vino de escanear el QR
+    # directamente — solo circulación tiene acceso físico a los QR sin tener
+    # antes un vehículo asignado, así que se autoasigna sin pasar por revisión
+    # de Carlos. La solicitud normal (sin escaneo) nunca manda entity_id.
+    estado_inicial = "Asignado" if (type_result.data["name"] == "Solicitud de vehículo" and entity_id) else "Abierto"
+
     record = {
         "ticket_type_id": ticket_type_id,
         "entity_id": entity_id,
@@ -112,12 +126,14 @@ def create_ticket(slug: str):
         "solicitante_email": correo,
         "campos": campos,
         "department_id": department_id,
-        "estado": "Abierto",
+        "estado": estado_inicial,
     }
+    if estado_inicial == "Asignado":
+        record["resolved_at"] = now()
     result = supabase.table("tickets").insert(record).execute()
     if not result.data:
         return error("No se pudo crear el ticket", 400)
     ticket = result.data[0]
-    supabase.table("ticket_events").insert({"ticket_id": ticket["id"], "accion": "creado", "estado_nuevo": "Abierto"}).execute()
+    supabase.table("ticket_events").insert({"ticket_id": ticket["id"], "accion": "creado", "estado_nuevo": estado_inicial}).execute()
     send_ticket_notification(department_result.data, ticket)
     return jsonify(ticket), 201

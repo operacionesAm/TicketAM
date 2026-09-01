@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash
 from app import google_oauth
 from app.demo_data import DEMO_ADMIN_PASSCODES, DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_TICKET_EVENTS, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
 from app.extensions import supabase
-from app.mailer import send_observation_email, send_status_update_email
+from app.mailer import send_observation_email, send_status_update_email, send_vehicle_assigned_email
 from app.photos import download_photo
 from app.qr import entity_qr_url, generate_labeled_qr_png
 
@@ -189,6 +189,66 @@ def admin_assign_responsable(ticket_id: str):
         "accion": "responsable_asignado",
         "comentario": responsable_nombre or "(sin asignar)",
     }).execute()
+    return jsonify({"ticket": updated.data[0]})
+
+
+@admin_bp.patch("/api/admin/tickets/<ticket_id>/vehiculo")
+@require_admin
+def admin_assign_vehiculo(ticket_id: str):
+    """Autoriza una "Solicitud de vehículo": Carlos elige una unidad activa
+    del inventario y, en el mismo paso, el ticket pasa a estado "Asignado" y
+    se le avisa al solicitante por correo (incluye el aviso de llevar copia
+    de su licencia). Mandar entity_id vacío solo quita la asignación, sin
+    tocar el estado."""
+    payload = request.get_json(silent=True) or {}
+    entity_id = payload.get("entity_id") or None
+    department_id = session["department_id"]
+
+    if not supabase:
+        ticket = next((item for item in DEMO_TICKETS if item["id"] == ticket_id and item["department_id"] == department_id), None)
+        if not ticket:
+            return error("Ticket no encontrado", 404)
+        if not entity_id:
+            ticket["entity_id"] = None
+            return jsonify({"ticket": ticket})
+        entity = next((e for e in DEMO_ENTITIES if e["id"] == entity_id and e["department_id"] == department_id), None)
+        if not entity:
+            return error("Vehículo no encontrado", 404)
+        if (entity.get("atributos") or {}).get("estado") == "Inactivo":
+            return error("Solo se pueden asignar vehículos activos", 400)
+        ticket["entity_id"] = entity_id
+        ticket["estado"] = "Asignado"
+        send_vehicle_assigned_email(DEMO_DEPARTMENT, ticket, entity)
+        return jsonify({"ticket": ticket})
+
+    current = supabase.table("tickets").select("*").eq("id", ticket_id).single().execute()
+    if not current.data or current.data["department_id"] != department_id:
+        return error("Ticket no encontrado", 404)
+
+    if not entity_id:
+        updated = supabase.table("tickets").update({"entity_id": None}).eq("id", ticket_id).execute()
+        return jsonify({"ticket": updated.data[0]})
+
+    entity_result = supabase.table("entities").select("*").eq("id", entity_id).single().execute()
+    if not entity_result.data or entity_result.data["department_id"] != department_id:
+        return error("Vehículo no encontrado", 404)
+    if (entity_result.data.get("atributos") or {}).get("estado") == "Inactivo":
+        return error("Solo se pueden asignar vehículos activos", 400)
+
+    updated = supabase.table("tickets").update({
+        "entity_id": entity_id,
+        "estado": "Asignado",
+        "resolved_at": now(),
+    }).eq("id", ticket_id).execute()
+    supabase.table("ticket_events").insert({
+        "ticket_id": ticket_id,
+        "accion": "vehiculo_asignado",
+        "estado_anterior": current.data["estado"],
+        "estado_nuevo": "Asignado",
+        "comentario": f"Vehículo asignado: {entity_result.data['codigo']}",
+    }).execute()
+    dept = supabase.table("departments").select("name, google_refresh_token").eq("id", department_id).single().execute()
+    send_vehicle_assigned_email(dept.data or {}, updated.data[0], entity_result.data)
     return jsonify({"ticket": updated.data[0]})
 
 

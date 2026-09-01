@@ -81,6 +81,28 @@ def send_observation_email(department: dict, ticket: dict, comentario: str) -> N
     _dispatch(department, to_email, subject, body)
 
 
+def send_vehicle_assigned_email(department: dict, ticket: dict, entity: dict) -> None:
+    """Avisa al solicitante que su solicitud de vehículo fue autorizada y qué
+    unidad se le asignó, más el requisito de llevar copia de su licencia de
+    conducir para concluir el proceso."""
+    to_email = ticket.get("solicitante_email")
+    if not to_email:
+        return
+    department_name = (department or {}).get("name") or ""
+    atributos = (entity or {}).get("atributos") or {}
+    vehiculo_desc = " ".join(filter(None, [atributos.get("marca"), atributos.get("modelo")])) or (entity or {}).get("nombre") or ""
+    subject = f"[TicketAM] Vehículo asignado — tu solicitud {ticket.get('folio', '')}"
+    body = (
+        f"Hola {ticket.get('solicitante_nombre', '')},\n\n"
+        f"Tu solicitud de vehículo {ticket.get('folio', '')} en {department_name} fue autorizada "
+        "y se te asignó la siguiente unidad:\n\n"
+        f"Placa: {(entity or {}).get('codigo', '')}\n"
+        f"Vehículo: {vehiculo_desc or '—'}\n\n"
+        "Para concluir el proceso, es obligatorio que lleves una copia de tu licencia de conducir."
+    )
+    _dispatch(department, to_email, subject, body)
+
+
 def _dispatch(department: dict, to_email: str, subject: str, body: str) -> None:
     """Intenta con la cuenta de Google conectada; si no hay o falla, cae a SMTP."""
     refresh_token = (department or {}).get("google_refresh_token")
