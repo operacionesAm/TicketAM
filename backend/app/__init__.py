@@ -1,7 +1,14 @@
 import os
 import secrets
 
+from dotenv import load_dotenv
 from flask import Flask
+
+# Se carga aquí, antes que cualquier submódulo de app/ (algunos, como
+# google_oauth.py, leen variables de entorno en su propio nivel de módulo al
+# importarse — si extensions.py fuera el primero en llamar load_dotenv(), los
+# módulos importados antes que él verían las variables como None).
+load_dotenv()
 
 
 def create_app() -> Flask:
