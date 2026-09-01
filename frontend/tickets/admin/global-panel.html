@@ -41,7 +41,7 @@
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <input id="newSlug" placeholder="slug (ej. sistemas)" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm">
         <input id="newName" placeholder="Nombre (ej. Sistemas)" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm">
-        <input id="newPasscode" placeholder="Contraseña de 8 dígitos" maxlength="8" inputmode="numeric" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm font-mono">
+        <input id="newPasscode" placeholder="NIP de 4 a 8 dígitos" maxlength="8" inputmode="numeric" class="rounded-lg border-2 border-slate-200 px-3 py-2.5 text-sm font-mono">
       </div>
       <p class="mt-2 text-xs text-slate-400">Se crea con los mismos dos tipos de ticket que Flota (Reporte de falla, Solicitud de vehículo) — listo para usarse igual desde el día uno.</p>
       <div id="createFormError" class="mt-3 hidden rounded-lg border-2 border-red-400 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800"></div>
@@ -52,6 +52,64 @@
     </div>
 
     <div id="departmentsList" class="space-y-3"></div>
+  </div>
+
+  <!-- MODAL MAS DETALLES -->
+  <div id="detailModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 p-5">
+    <div class="my-8 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+      <div class="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h3 id="detailName" class="text-lg font-bold text-brand-dark"></h3>
+          <div id="detailSlug" class="text-xs text-slate-400"></div>
+        </div>
+        <button class="text-2xl leading-none text-slate-400 hover:text-slate-600" onclick="closeDetailModal()">&times;</button>
+      </div>
+
+      <div class="mb-5 rounded-xl bg-slate-50 p-4">
+        <div class="text-[11px] font-bold uppercase tracking-wide text-slate-400">NIP actual</div>
+        <div class="mt-1 flex flex-wrap items-center gap-3">
+          <div id="detailNip" class="font-mono text-2xl font-bold tracking-widest text-brand-dark"></div>
+          <button class="rounded-lg border-2 border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" onclick="resetPasscode()">Resetear NIP</button>
+        </div>
+      </div>
+
+      <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div class="rounded-xl bg-slate-50 p-3">
+          <div id="detailTotal" class="text-xl font-bold text-brand-dark">—</div>
+          <div class="text-[11px] font-semibold text-slate-500">Tickets totales</div>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-3">
+          <div id="detailAbiertos" class="text-xl font-bold text-brand-dark">—</div>
+          <div class="text-[11px] font-semibold text-slate-500">Abiertos</div>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-3">
+          <div id="detailResueltos" class="text-xl font-bold text-brand-dark">—</div>
+          <div class="text-[11px] font-semibold text-slate-500">Resueltos / cerrados</div>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-3">
+          <div id="detailPromedio" class="text-xl font-bold text-brand-dark">—</div>
+          <div class="text-[11px] font-semibold text-slate-500">Prom. días de solución</div>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-3">
+          <div id="detailVehiculosTotal" class="text-xl font-bold text-brand-dark">—</div>
+          <div class="text-[11px] font-semibold text-slate-500">Vehículos totales</div>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-3">
+          <div id="detailVehiculosActivos" class="text-xl font-bold text-brand-dark">—</div>
+          <div class="text-[11px] font-semibold text-slate-500">Vehículos activos</div>
+        </div>
+      </div>
+
+      <div class="mb-5">
+        <div class="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Tickets por tipo</div>
+        <div id="detailPorTipo" class="space-y-1.5 text-sm"></div>
+      </div>
+
+      <div class="space-y-1 text-sm text-slate-500">
+        <div>Correo de aviso: <span class="text-slate-700" id="detailNotificationEmail">—</span></div>
+        <div>Google conectado: <span class="text-slate-700" id="detailGoogleEmail">—</span></div>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -114,25 +172,67 @@
           </div>
           <div class="mt-4 flex flex-wrap gap-2.5 border-t border-slate-100 pt-4">
             <a href="/admin" target="_blank" class="rounded-lg border-2 border-slate-200 px-4 py-2 text-xs font-semibold text-brand hover:bg-slate-50">Ir al panel de este departamento ↗</a>
-            <button class="rounded-lg border-2 border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50" onclick="resetPasscode('${d.id}', '${d.name.replace(/'/g, "\\'")}')">Resetear PIN</button>
+            <button class="rounded-lg border-2 border-slate-200 px-4 py-2 text-xs font-semibold text-brand-dark hover:bg-slate-50" onclick="openDetailModal('${d.id}')">Más detalles</button>
           </div>
         </div>
       `;
     }).join("");
   }
 
-  async function resetPasscode(departmentId, name) {
-    const passcode = prompt(`Nueva contraseña de 8 dígitos para "${name}":`);
+  let detailDepartmentId = null;
+
+  async function openDetailModal(departmentId) {
+    detailDepartmentId = departmentId;
+    const response = await fetch(`/api/global/departments/${departmentId}/detail`);
+    if (!response.ok) { alert("No se pudo cargar el detalle."); return; }
+    const d = await response.json();
+
+    document.getElementById("detailName").textContent = d.name;
+    document.getElementById("detailSlug").textContent = `slug: ${d.slug}`;
+    document.getElementById("detailNip").textContent = d.nip_actual || "No disponible";
+    document.getElementById("detailTotal").textContent = d.total_tickets;
+    document.getElementById("detailAbiertos").textContent = d.abiertos;
+    document.getElementById("detailResueltos").textContent = d.resueltos;
+    document.getElementById("detailPromedio").textContent = d.promedio_dias_solucion === null ? "—" : d.promedio_dias_solucion;
+    document.getElementById("detailVehiculosTotal").textContent = d.vehiculos_total;
+    document.getElementById("detailVehiculosActivos").textContent = d.vehiculos_activos;
+    document.getElementById("detailNotificationEmail").textContent = d.notification_email || "—";
+    document.getElementById("detailGoogleEmail").textContent = d.google_connected_email || "—";
+
+    const tipos = Object.entries(d.por_tipo || {});
+    document.getElementById("detailPorTipo").innerHTML = tipos.length
+      ? tipos.map(([nombre, cantidad]) => `
+          <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
+            <span class="text-slate-600">${nombre}</span>
+            <span class="font-bold text-brand-dark">${cantidad}</span>
+          </div>
+        `).join("")
+      : `<div class="text-slate-400">Sin tickets todavía.</div>`;
+
+    document.getElementById("detailModal").classList.remove("hidden");
+    document.getElementById("detailModal").classList.add("flex");
+  }
+
+  function closeDetailModal() {
+    detailDepartmentId = null;
+    document.getElementById("detailModal").classList.add("hidden");
+    document.getElementById("detailModal").classList.remove("flex");
+  }
+
+  async function resetPasscode() {
+    if (!detailDepartmentId) return;
+    const dept = departments.find(d => d.id === detailDepartmentId);
+    const passcode = prompt(`Nuevo NIP (4 a 8 dígitos) para "${dept ? dept.name : ""}":`);
     if (passcode === null) return;
-    if (!/^\d{8}$/.test(passcode)) { alert("Debe ser exactamente 8 dígitos."); return; }
-    const response = await fetch(`/api/global/departments/${departmentId}/passcode`, {
+    if (!/^\d{4,8}$/.test(passcode)) { alert("Debe ser numérico, de 4 a 8 dígitos."); return; }
+    const response = await fetch(`/api/global/departments/${detailDepartmentId}/passcode`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ passcode })
     });
-    if (!response.ok) { alert("No se pudo actualizar el PIN."); return; }
-    alert(`PIN actualizado para "${name}".`);
-    loadDepartments();
+    if (!response.ok) { alert("No se pudo actualizar el NIP."); return; }
+    await loadDepartments();
+    openDetailModal(detailDepartmentId);
   }
 
   function toggleCreateForm() {
@@ -153,7 +253,7 @@
     const passcode = document.getElementById("newPasscode").value.trim();
 
     if (!slug || !name) { createFormError("slug y nombre son obligatorios"); return; }
-    if (!/^\d{8}$/.test(passcode)) { createFormError("La contraseña debe ser de exactamente 8 dígitos"); return; }
+    if (!/^\d{4,8}$/.test(passcode)) { createFormError("El NIP debe ser numérico, de 4 a 8 dígitos"); return; }
 
     const response = await fetch("/api/global/departments", {
       method: "POST",

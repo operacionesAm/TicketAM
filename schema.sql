@@ -14,6 +14,7 @@ create table if not exists departments (
 alter table departments add column if not exists notification_email text;
 alter table departments add column if not exists google_refresh_token text;
 alter table departments add column if not exists google_connected_email text;
+alter table departments add column if not exists admin_passcode_encrypted text;
 
 create table if not exists department_members (
   department_id uuid references departments(id) on delete cascade,
