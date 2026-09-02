@@ -92,3 +92,88 @@ function initVehiclePicker({ entities, searchEl, listEl, countEl, hrefFor }) {
   searchEl.addEventListener("input", render);
   render();
 }
+
+// Exportar a Excel con selector de columnas — reutilizable en cualquier
+// pantalla de consulta. Arma su propio modal en el DOM la primera vez que se
+// usa (así no hay que repetir el HTML en cada página) usando la librería
+// SheetJS, que cada página debe cargar por su cuenta desde el CDN.
+let exportModalState = null;
+
+function ensureExportModal() {
+  if (document.getElementById("exportModal")) return;
+  const div = document.createElement("div");
+  div.id = "exportModal";
+  div.className = "fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 p-5";
+  div.innerHTML = `
+    <div class="my-8 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+      <div class="mb-4 flex items-start justify-between gap-3">
+        <h3 id="exportModalTitle" class="text-lg font-bold text-brand-dark">Descargar reporte</h3>
+        <button class="text-2xl leading-none text-slate-400 hover:text-slate-600" onclick="closeExportModal()">&times;</button>
+      </div>
+      <p id="exportModalCount" class="mb-3 text-xs text-slate-500">Elige qué columnas incluir en el Excel.</p>
+      <div class="mb-3 flex gap-3 text-xs font-semibold text-brand">
+        <button onclick="exportSelectAll(true)" class="underline">Seleccionar todas</button>
+        <button onclick="exportSelectAll(false)" class="underline">Ninguna</button>
+      </div>
+      <div id="exportColumnsList" class="mb-5 max-h-64 space-y-2 overflow-y-auto rounded-lg border border-slate-100 p-3"></div>
+      <div id="exportModalError" class="mb-3 hidden text-xs font-semibold text-red-600"></div>
+      <button class="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700" onclick="downloadExportXlsx()">⬇️ Descargar XLSX</button>
+    </div>
+  `;
+  document.body.appendChild(div);
+}
+
+// columns: [{ key, label, format? }] — format(rawValue) es opcional, para
+// columnas de fecha u otros valores que no deben ir crudos al Excel.
+// rows: array de objetos planos con esas keys.
+function openExportModal({ title, columns, rows, filenameBase }) {
+  ensureExportModal();
+  exportModalState = { columns, rows, filenameBase };
+  document.getElementById("exportModalTitle").textContent = title || "Descargar reporte";
+  document.getElementById("exportModalCount").textContent = `${rows.length} fila${rows.length === 1 ? "" : "s"} · elige qué columnas incluir`;
+  document.getElementById("exportModalError").classList.add("hidden");
+  document.getElementById("exportColumnsList").innerHTML = columns.map((c, i) => `
+    <label class="flex items-center gap-2 text-sm text-slate-700">
+      <input type="checkbox" data-col-index="${i}" checked class="h-4 w-4">
+      ${c.label}
+    </label>
+  `).join("");
+  document.getElementById("exportModal").classList.remove("hidden");
+  document.getElementById("exportModal").classList.add("flex");
+}
+
+function closeExportModal() {
+  const el = document.getElementById("exportModal");
+  if (el) { el.classList.add("hidden"); el.classList.remove("flex"); }
+}
+
+function exportSelectAll(value) {
+  document.querySelectorAll("#exportColumnsList input[type=checkbox]").forEach(cb => cb.checked = value);
+}
+
+function downloadExportXlsx() {
+  if (!exportModalState) return;
+  const errorEl = document.getElementById("exportModalError");
+  const checked = Array.from(document.querySelectorAll("#exportColumnsList input[type=checkbox]:checked"))
+    .map(cb => exportModalState.columns[Number(cb.dataset.colIndex)]);
+  if (!checked.length) {
+    errorEl.textContent = "Elige al menos una columna.";
+    errorEl.classList.remove("hidden");
+    return;
+  }
+
+  const data = exportModalState.rows.map(row => {
+    const obj = {};
+    checked.forEach(c => {
+      const raw = row[c.key] ?? "";
+      obj[c.label] = c.format ? c.format(raw) : raw;
+    });
+    return obj;
+  });
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Datos");
+  const fecha = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `${exportModalState.filenameBase}-${fecha}.xlsx`);
+  closeExportModal();
+}

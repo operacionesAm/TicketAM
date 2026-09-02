@@ -17,6 +17,7 @@
     }
   }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 font-sans text-slate-800">
 
@@ -43,7 +44,10 @@
 
       <div id="vehicleStats" class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4"></div>
 
-      <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Tickets de esta unidad</h2>
+      <div class="mb-3 flex items-center justify-between gap-3">
+        <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Tickets de esta unidad</h2>
+        <button class="rounded-lg border-2 border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-brand hover:text-brand" onclick="exportReporte()">⬇️ Descargar XLSX</button>
+      </div>
       <div id="vehicleTickets" class="mb-8 space-y-2.5"></div>
 
       <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Historial de eventos</h2>
@@ -54,6 +58,8 @@
 <script src="/tickets/admin/admin-shared.js"></script>
 <script>
   let entities = [];
+  let currentEntity = null;
+  let currentTickets = [];
 
   async function init() {
     const dept = await requireSession();
@@ -89,6 +95,7 @@
     document.getElementById("detailView").classList.remove("hidden");
 
     const entity = entities.find(e => e.id === entityId);
+    currentEntity = entity || null;
     if (!entity) {
       document.getElementById("vehicleHeader").innerHTML = `<p class="text-slate-500">Vehículo no encontrado.</p>`;
       document.getElementById("vehicleStats").innerHTML = "";
@@ -110,6 +117,7 @@
     const ticketsData = await ticketsRes.json();
     const eventsData = await eventsRes.json();
     const tickets = (ticketsData.tickets || []).filter(t => t.entity_id === entityId);
+    currentTickets = tickets;
     renderVehicleStats(tickets);
     renderTicketsList(tickets);
     renderTimeline(eventsData.events || []);
@@ -171,6 +179,33 @@
         <div class="mt-0.5 text-[11px] text-slate-400">${formatDate(e.created_at)}</div>
       </div>
     `).join("");
+  }
+
+  function exportReporte() {
+    if (!currentEntity) return;
+    const rows = currentTickets.map(t => ({
+      folio: t.folio,
+      descripcion: (t.campos && (t.campos.descripcion || t.campos.proposito || t.campos.pieza_refaccion)) || "",
+      estado: t.estado,
+      prioridad: t.prioridad || "—",
+      incidente_tipo: t.incidente_tipo || "—",
+      fecha: t.created_at,
+      fecha_resolucion: t.resolved_at
+    }));
+    openExportModal({
+      title: `Descargar tickets de ${currentEntity.codigo}`,
+      columns: [
+        { key: "folio", label: "Folio" },
+        { key: "descripcion", label: "Descripción" },
+        { key: "estado", label: "Estado" },
+        { key: "prioridad", label: "Prioridad" },
+        { key: "incidente_tipo", label: "Tipo de incidente" },
+        { key: "fecha", label: "Fecha", format: v => formatDate(v) },
+        { key: "fecha_resolucion", label: "Fecha de resolución", format: v => v ? formatDate(v) : "—" }
+      ],
+      rows,
+      filenameBase: `tickets-${currentEntity.codigo}`
+    });
   }
 
   init();

@@ -17,6 +17,7 @@
     }
   }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 font-sans text-slate-800">
 
@@ -30,6 +31,7 @@
     <div class="mb-4 flex flex-wrap items-center gap-3">
       <input id="piezasSearch" type="text" placeholder="Buscar por placa, pieza o solicitante…" class="min-w-[240px] flex-1 rounded-lg border-2 border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand">
       <span id="piezasCount" class="text-sm text-slate-500"></span>
+      <button class="rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-brand hover:text-brand" onclick="exportPiezas()">⬇️ Descargar XLSX</button>
     </div>
 
     <div class="overflow-x-auto rounded-2xl bg-white shadow-sm">
@@ -90,11 +92,15 @@
     render();
   }
 
-  function render() {
+  function visiblesActuales() {
     const query = (document.getElementById("piezasSearch").value || "").trim().toLowerCase();
-    const visibles = !query ? filas : filas.filter(f =>
+    return !query ? filas : filas.filter(f =>
       [f.placa, f.pieza, f.solicitante].join(" ").toLowerCase().includes(query)
     );
+  }
+
+  function render() {
+    const visibles = visiblesActuales();
     document.getElementById("piezasCount").textContent = `${visibles.length} de ${filas.length} solicitudes`;
 
     const body = document.getElementById("piezasBody");
@@ -115,6 +121,23 @@
         <td class="px-4 py-3 text-xs text-slate-400">${formatDate(f.fecha)}</td>
       </tr>
     `).join("");
+  }
+
+  function exportPiezas() {
+    openExportModal({
+      title: "Descargar Histórico de Piezas",
+      columns: [
+        { key: "placa", label: "Placa" },
+        { key: "marcaModelo", label: "Marca / Modelo" },
+        { key: "pieza", label: "Pieza / refacción" },
+        { key: "solicitante", label: "Solicitante" },
+        { key: "observacion", label: "Observación" },
+        { key: "estado", label: "Estado" },
+        { key: "fecha", label: "Fecha", format: v => formatDate(v) }
+      ],
+      rows: visiblesActuales(),
+      filenameBase: "historico-piezas"
+    });
   }
 
   init();

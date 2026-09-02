@@ -17,6 +17,7 @@
     }
   }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 font-sans text-slate-800">
 
@@ -27,25 +28,38 @@
     <h1 class="mb-1 text-xl font-bold text-brand-dark">Servicios Programados</h1>
     <p class="mb-4 text-sm text-slate-500">Mantenimiento preventivo/correctivo de motocicletas — al registrar un preventivo, el siguiente se programa automáticamente a un mes.</p>
 
-    <div id="motosList" class="mb-6 space-y-2.5"></div>
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+      <div class="flex gap-2">
+        <button id="viewBtnGrid" onclick="switchServiciosView('grid')">🔲 Cuadrícula</button>
+        <button id="viewBtnLista" onclick="switchServiciosView('lista')">📃 Lista</button>
+      </div>
+      <button class="ml-auto rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-brand hover:text-brand" onclick="exportServicios()">⬇️ Descargar XLSX</button>
+    </div>
 
-    <div id="detailPanel" class="hidden rounded-2xl bg-white p-5 shadow-sm">
+    <div id="gridView" class="hidden grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+    <div id="listaView" class="space-y-2.5"></div>
+  </div>
+
+  <!-- MODAL REGISTRAR / HISTORIAL -->
+  <div id="detailModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 p-5">
+    <div class="my-8 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
       <div class="mb-4 flex items-start justify-between gap-3">
         <div>
           <div id="detailPlaca" class="font-mono text-lg font-bold text-brand-dark"></div>
           <div id="detailModelo" class="text-sm text-slate-500"></div>
+          <div id="detailEstadoBadge" class="mt-1.5"></div>
         </div>
         <button class="text-2xl leading-none text-slate-400 hover:text-slate-600" onclick="cerrarDetalle()">&times;</button>
       </div>
 
-      <div class="mb-5 grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-4">
+      <div class="mb-5 grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
         <select id="servicioTipo" class="rounded-lg border-2 border-slate-200 px-3 py-2 text-sm">
           <option value="preventivo">🔧 Preventivo</option>
           <option value="correctivo">🛠️ Correctivo</option>
         </select>
         <input id="servicioFecha" type="date" class="rounded-lg border-2 border-slate-200 px-3 py-2 text-sm">
-        <input id="servicioNotas" type="text" placeholder="Notas (opcional)" class="rounded-lg border-2 border-slate-200 px-3 py-2 text-sm sm:col-span-1">
-        <button class="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700" onclick="registrarServicio()">Registrar servicio</button>
+        <input id="servicioNotas" type="text" placeholder="Notas (opcional)" class="rounded-lg border-2 border-slate-200 px-3 py-2 text-sm sm:col-span-2">
+        <button class="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 sm:col-span-2" onclick="registrarServicio()">Registrar servicio</button>
       </div>
       <div id="servicioError" class="mb-4 hidden text-xs font-semibold text-red-600"></div>
 
@@ -57,8 +71,12 @@
 <script src="/tickets/admin/admin-shared.js"></script>
 <script>
   const UMBRAL_DIAS = 7;
+  const VIEW_BTN_ACTIVE = ["rounded-lg", "px-4", "py-2.5", "text-sm", "font-bold", "text-white", "bg-gradient-to-br", "from-brand", "to-brand-dark", "shadow-md", "shadow-brand/25"];
+  const VIEW_BTN_INACTIVE = ["rounded-lg", "px-4", "py-2.5", "text-sm", "font-bold", "text-slate-500", "bg-white", "hover:text-brand"];
+
   let motos = [];
   let servicios = [];
+  let serviciosView = "grid";
   let entityIdSeleccionado = null;
 
   async function init() {
@@ -77,6 +95,15 @@
     servicios = serviciosData.servicios || [];
 
     document.getElementById("servicioFecha").value = new Date().toISOString().slice(0, 10);
+    switchServiciosView("grid");
+  }
+
+  function switchServiciosView(view) {
+    serviciosView = view;
+    document.getElementById("viewBtnGrid").className = (view === "grid" ? VIEW_BTN_ACTIVE : VIEW_BTN_INACTIVE).join(" ");
+    document.getElementById("viewBtnLista").className = (view === "lista" ? VIEW_BTN_ACTIVE : VIEW_BTN_INACTIVE).join(" ");
+    document.getElementById("gridView").classList.toggle("hidden", view !== "grid");
+    document.getElementById("listaView").classList.toggle("hidden", view !== "lista");
     render();
   }
 
@@ -94,8 +121,8 @@
     return { label: `Al día · en ${dias} días`, clase: "bg-emerald-100 text-emerald-800", dias };
   }
 
-  function render() {
-    const filas = motos.map(m => {
+  function filasOrdenadas() {
+    return motos.map(m => {
       const ultimo = ultimoPreventivo(m.id);
       const estado = estadoServicio(ultimo ? ultimo.proximo_servicio_fecha : null);
       return { moto: m, ultimo, estado };
@@ -104,26 +131,48 @@
       const db = b.estado.dias === null ? Infinity : b.estado.dias;
       return da - db;
     });
+  }
 
-    const list = document.getElementById("motosList");
+  function render() {
+    const filas = filasOrdenadas();
     if (!filas.length) {
-      list.innerHTML = `<div class="py-16 text-center text-slate-400">Sin motocicletas registradas en el inventario.</div>`;
+      document.getElementById("gridView").innerHTML = `<div class="col-span-full py-16 text-center text-slate-400">Sin motocicletas registradas en el inventario.</div>`;
+      document.getElementById("listaView").innerHTML = `<div class="py-16 text-center text-slate-400">Sin motocicletas registradas en el inventario.</div>`;
       return;
     }
-    list.innerHTML = filas.map(({ moto, ultimo, estado }) => {
-      const a = moto.atributos || {};
-      return `
-        <div class="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3.5 shadow-sm sm:flex-nowrap">
-          <div class="min-w-0 flex-1">
-            <div class="font-mono text-sm font-bold text-brand-dark">${moto.codigo}</div>
-            <div class="text-xs text-slate-500">${[a.marca, a.modelo].filter(Boolean).join(" ") || moto.nombre || "—"}</div>
-            <div class="mt-1.5"><span class="rounded-full ${estado.clase} px-2.5 py-1 text-xs font-bold">${estado.label}</span></div>
-            ${ultimo ? `<div class="mt-1 text-[11px] text-slate-400">Último preventivo: ${formatDate(ultimo.fecha)}</div>` : ""}
-          </div>
-          <button class="shrink-0 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-brand hover:bg-slate-50" onclick="abrirDetalle('${moto.id}')">Ver / Registrar servicio</button>
+    if (serviciosView === "grid") {
+      document.getElementById("gridView").innerHTML = filas.map(renderGridCard).join("");
+    } else {
+      document.getElementById("listaView").innerHTML = filas.map(renderListRow).join("");
+    }
+  }
+
+  function renderGridCard({ moto, ultimo, estado }) {
+    const a = moto.atributos || {};
+    return `
+      <div class="rounded-2xl bg-white p-4 text-center shadow-sm">
+        <div class="font-mono text-sm font-bold text-brand-dark">${moto.codigo}</div>
+        <div class="mt-1 text-sm text-slate-600">${[a.marca, a.modelo].filter(Boolean).join(" ") || moto.nombre || "—"}</div>
+        <div class="mt-2"><span class="rounded-full ${estado.clase} px-2.5 py-1 text-xs font-bold">${estado.label}</span></div>
+        ${ultimo ? `<div class="mt-1.5 text-[11px] text-slate-400">Último preventivo: ${formatDate(ultimo.fecha)}</div>` : ""}
+        <button class="mt-3 w-full rounded-md border border-slate-200 py-1.5 text-xs font-semibold text-brand hover:bg-slate-50" onclick="abrirDetalle('${moto.id}')">Ver / Registrar servicio</button>
+      </div>
+    `;
+  }
+
+  function renderListRow({ moto, ultimo, estado }) {
+    const a = moto.atributos || {};
+    return `
+      <div class="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3.5 shadow-sm sm:flex-nowrap">
+        <div class="min-w-0 flex-1">
+          <div class="font-mono text-sm font-bold text-brand-dark">${moto.codigo}</div>
+          <div class="text-xs text-slate-500">${[a.marca, a.modelo].filter(Boolean).join(" ") || moto.nombre || "—"}</div>
+          <div class="mt-1.5"><span class="rounded-full ${estado.clase} px-2.5 py-1 text-xs font-bold">${estado.label}</span></div>
+          ${ultimo ? `<div class="mt-1 text-[11px] text-slate-400">Último preventivo: ${formatDate(ultimo.fecha)}</div>` : ""}
         </div>
-      `;
-    }).join("");
+        <button class="shrink-0 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-brand hover:bg-slate-50" onclick="abrirDetalle('${moto.id}')">Ver / Registrar servicio</button>
+      </div>
+    `;
   }
 
   function abrirDetalle(entityId) {
@@ -131,18 +180,23 @@
     const moto = motos.find(m => m.id === entityId);
     if (!moto) return;
     const a = moto.atributos || {};
+    const ultimo = ultimoPreventivo(entityId);
+    const estado = estadoServicio(ultimo ? ultimo.proximo_servicio_fecha : null);
+
     document.getElementById("detailPlaca").textContent = moto.codigo;
     document.getElementById("detailModelo").textContent = [a.marca, a.modelo].filter(Boolean).join(" ") || moto.nombre || "—";
+    document.getElementById("detailEstadoBadge").innerHTML = `<span class="rounded-full ${estado.clase} px-2.5 py-1 text-xs font-bold">${estado.label}</span>`;
     document.getElementById("servicioError").classList.add("hidden");
     document.getElementById("servicioNotas").value = "";
     renderHistorial(entityId);
-    document.getElementById("detailPanel").classList.remove("hidden");
-    document.getElementById("detailPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("detailModal").classList.remove("hidden");
+    document.getElementById("detailModal").classList.add("flex");
   }
 
   function cerrarDetalle() {
     entityIdSeleccionado = null;
-    document.getElementById("detailPanel").classList.add("hidden");
+    document.getElementById("detailModal").classList.add("hidden");
+    document.getElementById("detailModal").classList.remove("flex");
   }
 
   function renderHistorial(entityId) {
@@ -166,6 +220,13 @@
 
   async function registrarServicio() {
     if (!entityIdSeleccionado) return;
+    const moto = motos.find(m => m.id === entityIdSeleccionado);
+    if (!moto) return;
+    const a = moto.atributos || {};
+    const modelo = [a.marca, a.modelo].filter(Boolean).join(" ") || moto.nombre || "—";
+
+    if (!confirm(`¿Confirmas que el servicio es para esta moto?\n\n${moto.codigo} — ${modelo}`)) return;
+
     const tipo = document.getElementById("servicioTipo").value;
     const fechaInput = document.getElementById("servicioFecha").value;
     const notas = document.getElementById("servicioNotas").value.trim();
@@ -190,7 +251,32 @@
     servicios.unshift(data.servicio);
     document.getElementById("servicioNotas").value = "";
     render();
-    renderHistorial(entityIdSeleccionado);
+    abrirDetalle(entityIdSeleccionado);
+  }
+
+  function exportServicios() {
+    const filas = filasOrdenadas().map(({ moto, ultimo, estado }) => {
+      const a = moto.atributos || {};
+      return {
+        placa: moto.codigo,
+        marca_modelo: [a.marca, a.modelo].filter(Boolean).join(" ") || moto.nombre || "",
+        estado_servicio: estado.label,
+        ultimo_preventivo: ultimo ? formatDate(ultimo.fecha) : "—",
+        proximo_servicio: ultimo && ultimo.proximo_servicio_fecha ? formatDate(ultimo.proximo_servicio_fecha) : "—"
+      };
+    });
+    openExportModal({
+      title: "Descargar Servicios Programados",
+      columns: [
+        { key: "placa", label: "Placa" },
+        { key: "marca_modelo", label: "Marca / Modelo" },
+        { key: "estado_servicio", label: "Estado del servicio" },
+        { key: "ultimo_preventivo", label: "Último preventivo" },
+        { key: "proximo_servicio", label: "Próximo servicio" }
+      ],
+      rows: filas,
+      filenameBase: "servicios-programados"
+    });
   }
 
   init();

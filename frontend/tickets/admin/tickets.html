@@ -17,6 +17,7 @@
     }
   }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 font-sans text-slate-800">
 
@@ -34,6 +35,7 @@
         <button id="viewBtnKanban" onclick="switchView('kanban')">🗂️ Kanban</button>
         <button id="viewBtnLista" onclick="switchView('lista')">📃 Lista</button>
         <button id="viewBtnArchivo" onclick="switchView('archivo')">🗄️ Archivo</button>
+        <button class="rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-brand hover:text-brand" onclick="exportTickets()">⬇️ Descargar XLSX</button>
       </div>
     </div>
 
@@ -706,6 +708,65 @@
       if (ticketId) moveTicket(ticketId, column.dataset.estado);
     });
   })();
+
+  function tipoNombre(ticket) {
+    const type = Object.values(ticketTypesByName).find(t => t.id === ticket.ticket_type_id);
+    return type ? type.name : "—";
+  }
+
+  function currentVisibleTickets() {
+    const typeIds = currentTicketTypeIds();
+    if (currentView === "archivo") {
+      return allTickets.filter(t => typeIds.includes(t.ticket_type_id) && isArchived(t));
+    }
+    if (currentView === "lista") {
+      const filtered = allTickets.filter(t => typeIds.includes(t.ticket_type_id) && !isArchived(t));
+      return listStatusFilter === "Todos" ? filtered : filtered.filter(t => t.estado === listStatusFilter);
+    }
+    const type = currentType();
+    return type ? allTickets.filter(t => t.ticket_type_id === type.id && !isArchived(t)) : [];
+  }
+
+  function exportTickets() {
+    const rows = currentVisibleTickets().map(t => {
+      const campos = t.campos || {};
+      const vehiculo = vehiculoLabel(t);
+      return {
+        folio: t.folio,
+        tipo: tipoNombre(t),
+        solicitante: t.solicitante_nombre,
+        correo: t.solicitante_email,
+        vehiculo: vehiculo ? vehiculo.placa : "—",
+        resumen: campos.descripcion || campos.proposito || campos.pieza_refaccion || "",
+        estado: t.estado,
+        prioridad: t.prioridad || "—",
+        incidente_tipo: t.incidente_tipo || "—",
+        responsable: t.responsable_nombre || "—",
+        fecha: t.created_at,
+        fecha_resolucion: t.resolved_at
+      };
+    });
+    const nombreVista = currentView === "archivo" ? "archivo" : currentView === "lista" ? "lista" : "kanban";
+    openExportModal({
+      title: "Descargar Tickets",
+      columns: [
+        { key: "folio", label: "Folio" },
+        { key: "tipo", label: "Tipo" },
+        { key: "solicitante", label: "Solicitante" },
+        { key: "correo", label: "Correo" },
+        { key: "vehiculo", label: "Vehículo" },
+        { key: "resumen", label: "Descripción / detalle" },
+        { key: "estado", label: "Estado" },
+        { key: "prioridad", label: "Prioridad" },
+        { key: "incidente_tipo", label: "Clasificación" },
+        { key: "responsable", label: "Responsable" },
+        { key: "fecha", label: "Fecha", format: v => formatDate(v) },
+        { key: "fecha_resolucion", label: "Fecha de resolución", format: v => v ? formatDate(v) : "—" }
+      ],
+      rows,
+      filenameBase: `tickets-${nombreVista}`
+    });
+  }
 
   (async function init() {
     const dept = await requireSession();

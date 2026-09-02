@@ -17,6 +17,7 @@
     }
   }
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 font-sans text-slate-800">
 
@@ -30,6 +31,7 @@
     <div class="mb-4 flex flex-wrap items-center gap-3">
       <input id="siniestrosSearch" type="text" placeholder="Buscar por placa, solicitante o folio…" class="min-w-[240px] flex-1 rounded-lg border-2 border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand">
       <span id="siniestrosCount" class="text-sm text-slate-500"></span>
+      <button class="rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-brand hover:text-brand" onclick="exportSiniestros()">⬇️ Descargar XLSX</button>
     </div>
 
     <div id="siniestrosList" class="space-y-2.5"></div>
@@ -77,11 +79,15 @@
     render();
   }
 
-  function render() {
+  function visiblesActuales() {
     const query = (document.getElementById("siniestrosSearch").value || "").trim().toLowerCase();
-    const visibles = !query ? siniestros : siniestros.filter(({ ticket, entity }) =>
+    return !query ? siniestros : siniestros.filter(({ ticket, entity }) =>
       [ticket.folio, ticket.solicitante_nombre, entity?.codigo].filter(Boolean).join(" ").toLowerCase().includes(query)
     );
+  }
+
+  function render() {
+    const visibles = visiblesActuales();
     document.getElementById("siniestrosCount").textContent = `${visibles.length} de ${siniestros.length} siniestros`;
 
     const list = document.getElementById("siniestrosList");
@@ -144,6 +150,38 @@
   function closeDetail() {
     document.getElementById("detailModal").classList.add("hidden");
     document.getElementById("detailModal").classList.remove("flex");
+  }
+
+  function exportSiniestros() {
+    const rows = visiblesActuales().map(({ ticket, entity }) => ({
+      folio: ticket.folio,
+      placa: entity ? entity.codigo : "—",
+      solicitante: ticket.solicitante_nombre,
+      correo: ticket.solicitante_email,
+      departamento: (ticket.campos || {}).departamento_solicitante || "—",
+      descripcion: (ticket.campos || {}).descripcion || "",
+      estado: ticket.estado,
+      prioridad: ticket.prioridad || "—",
+      fecha: ticket.created_at,
+      fecha_resolucion: ticket.resolved_at
+    }));
+    openExportModal({
+      title: "Descargar Histórico de Siniestros",
+      columns: [
+        { key: "folio", label: "Folio" },
+        { key: "placa", label: "Placa" },
+        { key: "solicitante", label: "Solicitante" },
+        { key: "correo", label: "Correo" },
+        { key: "departamento", label: "Departamento" },
+        { key: "descripcion", label: "Descripción" },
+        { key: "estado", label: "Estado" },
+        { key: "prioridad", label: "Prioridad" },
+        { key: "fecha", label: "Fecha", format: v => formatDate(v) },
+        { key: "fecha_resolucion", label: "Fecha de resolución", format: v => v ? formatDate(v) : "—" }
+      ],
+      rows,
+      filenameBase: "historico-siniestros"
+    });
   }
 
   init();

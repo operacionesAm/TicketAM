@@ -18,6 +18,7 @@
   }
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="min-h-screen bg-slate-100 font-sans text-slate-800">
 
@@ -37,6 +38,7 @@
         <button id="viewBtnLista" onclick="switchInventoryView('lista')">📃 Lista</button>
       </div>
       <button id="printModeBtn" class="rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-brand hover:text-brand" onclick="togglePrintMode()">🖨️ Imprimir PDF</button>
+      <button class="rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-brand hover:text-brand" onclick="exportInventario()">⬇️ Descargar XLSX</button>
       <button class="rounded-lg bg-gradient-to-br from-brand to-brand-dark px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-brand/25" onclick="startCreate()">+ Agregar vehículo</button>
     </div>
 
@@ -541,6 +543,37 @@
       btn.textContent = textoOriginal;
       btn.disabled = false;
     }
+  }
+
+  function exportInventario() {
+    const rows = filteredEntities().map(e => {
+      const a = e.atributos || {};
+      return {
+        placa: e.codigo,
+        tipo: a.tipo || "—",
+        marca: a.marca || "—",
+        modelo: a.modelo || "—",
+        año: a.año || "—",
+        estado: a.estado || "—",
+        razon_social: a.departamento || "—",
+        combustible: a.combustible || "—"
+      };
+    });
+    openExportModal({
+      title: "Descargar Inventario de unidades",
+      columns: [
+        { key: "placa", label: "Placa" },
+        { key: "tipo", label: "Tipo" },
+        { key: "marca", label: "Marca" },
+        { key: "modelo", label: "Modelo" },
+        { key: "año", label: "Año" },
+        { key: "estado", label: "Estado" },
+        { key: "razon_social", label: "Razón social" },
+        { key: "combustible", label: "Combustible" }
+      ],
+      rows,
+      filenameBase: "inventario-unidades"
+    });
   }
 
   (async function init() {
