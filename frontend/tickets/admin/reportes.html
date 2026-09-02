@@ -204,7 +204,8 @@
         { key: "fecha_resolucion", label: "Fecha de resolución", format: v => v ? formatDate(v) : "—" }
       ],
       rows,
-      filenameBase: `tickets-${currentEntity.codigo}`
+      filenameBase: `tickets-${currentEntity.codigo}`,
+      dateKey: "fecha"
     });
   }
 

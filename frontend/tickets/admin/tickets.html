@@ -764,7 +764,8 @@
         { key: "fecha_resolucion", label: "Fecha de resolución", format: v => v ? formatDate(v) : "—" }
       ],
       rows,
-      filenameBase: `tickets-${nombreVista}`
+      filenameBase: `tickets-${nombreVista}`,
+      dateKey: "fecha"
     });
   }
 

@@ -34,9 +34,9 @@ function renderNav(activeKey, dept) {
   ];
   nav.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-br from-brand-dark to-brand px-4 py-5 sm:px-6 text-white">
-      <div class="min-w-0">
-        <h2 class="truncate text-lg font-bold">${dept ? dept.name : "Panel"}</h2>
-        <div class="mt-0.5 truncate text-xs text-blue-200">${dept ? "Departamento: " + dept.slug : ""}</div>
+      <div class="flex min-w-0 items-center gap-3">
+        <img src="/tickets/assets/logo-am.png" alt="AM" class="h-8 w-auto shrink-0">
+        <h2 class="truncate text-lg font-bold">Sistema de tickets de ${dept ? dept.name : "Panel"}</h2>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         ${links.map(l => `<a href="${l.href}" class="${(l.key === activeKey ? NAV_ACTIVE : NAV_INACTIVE).join(" ")}">${l.label}</a>`).join("")}
@@ -105,17 +105,38 @@ function ensureExportModal() {
   div.id = "exportModal";
   div.className = "fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 p-5";
   div.innerHTML = `
-    <div class="my-8 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+    <div class="my-8 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
       <div class="mb-4 flex items-start justify-between gap-3">
         <h3 id="exportModalTitle" class="text-lg font-bold text-brand-dark">Descargar reporte</h3>
         <button class="text-2xl leading-none text-slate-400 hover:text-slate-600" onclick="closeExportModal()">&times;</button>
       </div>
       <p id="exportModalCount" class="mb-3 text-xs text-slate-500">Elige qué columnas incluir en el Excel.</p>
+
+      <div id="exportDateRangeWrap" class="mb-4 hidden">
+        <div class="mb-1.5 flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Rango de fechas</span>
+          <button onclick="exportClearDateRange()" class="text-xs font-semibold text-brand underline">Todas las fechas</button>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <input id="exportFechaDesde" type="date" class="flex-1 rounded-lg border-2 border-slate-200 px-3 py-2 text-sm" onchange="onExportDateRangeChange()">
+          <input id="exportFechaHasta" type="date" class="flex-1 rounded-lg border-2 border-slate-200 px-3 py-2 text-sm" onchange="onExportDateRangeChange()">
+        </div>
+      </div>
+
       <div class="mb-3 flex gap-3 text-xs font-semibold text-brand">
         <button onclick="exportSelectAll(true)" class="underline">Seleccionar todas</button>
         <button onclick="exportSelectAll(false)" class="underline">Ninguna</button>
       </div>
-      <div id="exportColumnsList" class="mb-5 max-h-64 space-y-2 overflow-y-auto rounded-lg border border-slate-100 p-3"></div>
+      <div id="exportColumnsList" class="mb-5 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-slate-100 p-3"></div>
+
+      <div class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Vista previa</div>
+      <div class="mb-5 overflow-x-auto rounded-lg border border-slate-100">
+        <table class="w-full text-left text-xs">
+          <thead id="exportPreviewHead" class="bg-slate-50 text-slate-500"></thead>
+          <tbody id="exportPreviewBody"></tbody>
+        </table>
+      </div>
+
       <div id="exportModalError" class="mb-3 hidden text-xs font-semibold text-red-600"></div>
       <button class="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700" onclick="downloadExportXlsx()">⬇️ Descargar XLSX</button>
     </div>
@@ -125,19 +146,28 @@ function ensureExportModal() {
 
 // columns: [{ key, label, format? }] — format(rawValue) es opcional, para
 // columnas de fecha u otros valores que no deben ir crudos al Excel.
-// rows: array de objetos planos con esas keys.
-function openExportModal({ title, columns, rows, filenameBase }) {
+// rows: array de objetos planos con esas keys. dateKey (opcional): key de
+// `rows` con una fecha ISO cruda — si se manda, aparece el filtro de rango
+// de fechas; si no, esa sección se oculta (p. ej. Inventario no tiene una
+// fecha natural por la que filtrar).
+function openExportModal({ title, columns, rows, filenameBase, dateKey }) {
   ensureExportModal();
-  exportModalState = { columns, rows, filenameBase };
+  exportModalState = { columns, rows, filenameBase, dateKey, fechaDesde: null, fechaHasta: null };
   document.getElementById("exportModalTitle").textContent = title || "Descargar reporte";
-  document.getElementById("exportModalCount").textContent = `${rows.length} fila${rows.length === 1 ? "" : "s"} · elige qué columnas incluir`;
   document.getElementById("exportModalError").classList.add("hidden");
+
+  document.getElementById("exportDateRangeWrap").classList.toggle("hidden", !dateKey);
+  document.getElementById("exportFechaDesde").value = "";
+  document.getElementById("exportFechaHasta").value = "";
+
   document.getElementById("exportColumnsList").innerHTML = columns.map((c, i) => `
     <label class="flex items-center gap-2 text-sm text-slate-700">
-      <input type="checkbox" data-col-index="${i}" checked class="h-4 w-4">
+      <input type="checkbox" data-col-index="${i}" checked class="h-4 w-4" onchange="renderExportPreview()">
       ${c.label}
     </label>
   `).join("");
+  updateExportCount();
+  renderExportPreview();
   document.getElementById("exportModal").classList.remove("hidden");
   document.getElementById("exportModal").classList.add("flex");
 }
@@ -149,20 +179,103 @@ function closeExportModal() {
 
 function exportSelectAll(value) {
   document.querySelectorAll("#exportColumnsList input[type=checkbox]").forEach(cb => cb.checked = value);
+  renderExportPreview();
+}
+
+function onExportDateRangeChange() {
+  if (!exportModalState) return;
+  exportModalState.fechaDesde = document.getElementById("exportFechaDesde").value || null;
+  exportModalState.fechaHasta = document.getElementById("exportFechaHasta").value || null;
+  updateExportCount();
+  renderExportPreview();
+}
+
+function exportClearDateRange() {
+  document.getElementById("exportFechaDesde").value = "";
+  document.getElementById("exportFechaHasta").value = "";
+  onExportDateRangeChange();
+}
+
+function exportFilteredRows() {
+  if (!exportModalState) return [];
+  const { rows, dateKey, fechaDesde, fechaHasta } = exportModalState;
+  if (!dateKey || (!fechaDesde && !fechaHasta)) return rows;
+  return rows.filter(row => {
+    const raw = row[dateKey];
+    if (!raw) return false;
+    const t = new Date(raw).getTime();
+    if (fechaDesde && t < new Date(fechaDesde + "T00:00:00").getTime()) return false;
+    if (fechaHasta && t > new Date(fechaHasta + "T23:59:59").getTime()) return false;
+    return true;
+  });
+}
+
+function updateExportCount() {
+  const total = exportModalState.rows.length;
+  const filtered = exportFilteredRows().length;
+  document.getElementById("exportModalCount").textContent = filtered === total
+    ? `${total} fila${total === 1 ? "" : "s"} · elige qué columnas incluir`
+    : `${filtered} de ${total} filas (rango de fechas aplicado) · elige qué columnas incluir`;
+}
+
+function checkedExportColumns() {
+  return Array.from(document.querySelectorAll("#exportColumnsList input[type=checkbox]:checked"))
+    .map(cb => exportModalState.columns[Number(cb.dataset.colIndex)]);
+}
+
+const EXPORT_PREVIEW_ROWS = 5;
+
+function renderExportPreview() {
+  if (!exportModalState) return;
+  const checked = checkedExportColumns();
+  const head = document.getElementById("exportPreviewHead");
+  const body = document.getElementById("exportPreviewBody");
+  if (!checked.length) {
+    head.innerHTML = "";
+    body.innerHTML = `<tr><td class="px-3 py-4 text-center text-slate-400">Elige al menos una columna.</td></tr>`;
+    return;
+  }
+  head.innerHTML = `<tr>${checked.map(c => `<th class="whitespace-nowrap px-3 py-2 font-bold">${c.label}</th>`).join("")}</tr>`;
+
+  const filtradas = exportFilteredRows();
+  const muestra = filtradas.slice(0, EXPORT_PREVIEW_ROWS);
+  if (!muestra.length) {
+    body.innerHTML = `<tr><td colspan="${checked.length}" class="px-3 py-4 text-center text-slate-400">Sin filas para este rango.</td></tr>`;
+    return;
+  }
+  const filas = muestra.map(row => `
+    <tr class="border-t border-slate-100">
+      ${checked.map(c => {
+        const raw = row[c.key] ?? "";
+        const value = c.format ? c.format(raw) : raw;
+        return `<td class="whitespace-nowrap px-3 py-2 text-slate-600">${value === "" || value === null || value === undefined ? "—" : value}</td>`;
+      }).join("")}
+    </tr>
+  `);
+  if (filtradas.length > EXPORT_PREVIEW_ROWS) {
+    const resto = filtradas.length - EXPORT_PREVIEW_ROWS;
+    filas.push(`<tr class="border-t border-slate-100"><td colspan="${checked.length}" class="px-3 py-2 text-center text-slate-400">… y ${resto} fila${resto === 1 ? "" : "s"} más</td></tr>`);
+  }
+  body.innerHTML = filas.join("");
 }
 
 function downloadExportXlsx() {
   if (!exportModalState) return;
   const errorEl = document.getElementById("exportModalError");
-  const checked = Array.from(document.querySelectorAll("#exportColumnsList input[type=checkbox]:checked"))
-    .map(cb => exportModalState.columns[Number(cb.dataset.colIndex)]);
+  const checked = checkedExportColumns();
   if (!checked.length) {
     errorEl.textContent = "Elige al menos una columna.";
     errorEl.classList.remove("hidden");
     return;
   }
+  const filasFiltradas = exportFilteredRows();
+  if (!filasFiltradas.length) {
+    errorEl.textContent = "No hay filas para ese rango de fechas.";
+    errorEl.classList.remove("hidden");
+    return;
+  }
 
-  const data = exportModalState.rows.map(row => {
+  const data = filasFiltradas.map(row => {
     const obj = {};
     checked.forEach(c => {
       const raw = row[c.key] ?? "";

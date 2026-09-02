@@ -262,7 +262,8 @@
         marca_modelo: [a.marca, a.modelo].filter(Boolean).join(" ") || moto.nombre || "",
         estado_servicio: estado.label,
         ultimo_preventivo: ultimo ? formatDate(ultimo.fecha) : "—",
-        proximo_servicio: ultimo && ultimo.proximo_servicio_fecha ? formatDate(ultimo.proximo_servicio_fecha) : "—"
+        proximo_servicio: ultimo && ultimo.proximo_servicio_fecha ? formatDate(ultimo.proximo_servicio_fecha) : "—",
+        proximo_servicio_iso: ultimo ? ultimo.proximo_servicio_fecha : null
       };
     });
     openExportModal({
@@ -275,7 +276,8 @@
         { key: "proximo_servicio", label: "Próximo servicio" }
       ],
       rows: filas,
-      filenameBase: "servicios-programados"
+      filenameBase: "servicios-programados",
+      dateKey: "proximo_servicio_iso"
     });
   }
 
