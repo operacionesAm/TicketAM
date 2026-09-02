@@ -87,6 +87,16 @@
           </div>
         </div>
       </a>
+
+      <a id="alertServicios" href="/admin/servicios" class="block rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+        <div class="flex items-center gap-3">
+          <div id="alertServiciosIcon" class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-100 text-xl">🔧</div>
+          <div>
+            <div id="alertServiciosValue" class="text-2xl font-bold leading-none">—</div>
+            <div class="mt-1 text-sm font-semibold">servicios de moto próximos o vencidos</div>
+          </div>
+        </div>
+      </a>
     </div>
 
     <!-- GRAFICAS -->
@@ -167,6 +177,24 @@
         <h2 class="mb-1.5 text-base font-bold text-brand-dark">Reportes individuales</h2>
         <p class="text-sm text-slate-500">Elige un vehículo y revisa sus tickets e historial completo.</p>
       </a>
+
+      <a href="/admin/piezas" class="block rounded-2xl bg-white p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+        <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-2xl">🔧</div>
+        <h2 class="mb-1.5 text-base font-bold text-brand-dark">Histórico de Piezas</h2>
+        <p class="text-sm text-slate-500">Bitácora de refacciones y consumibles solicitados por vehículo.</p>
+      </a>
+
+      <a href="/admin/servicios" class="block rounded-2xl bg-white p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+        <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-2xl">🗓️</div>
+        <h2 class="mb-1.5 text-base font-bold text-brand-dark">Servicios Programados</h2>
+        <p class="text-sm text-slate-500">Mantenimiento preventivo y correctivo de motocicletas.</p>
+      </a>
+
+      <a href="/admin/siniestros" class="block rounded-2xl bg-white p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+        <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-2xl">🚨</div>
+        <h2 class="mb-1.5 text-base font-bold text-brand-dark">Histórico de Siniestros</h2>
+        <p class="text-sm text-slate-500">Vista consolidada de siniestros por unidad y solicitante.</p>
+      </a>
     </div>
   </div>
 
@@ -202,7 +230,7 @@
     iconEl.className = classes.icon;
   }
 
-  function renderAlerts(tickets, ticketTypesByName) {
+  function renderAlerts(tickets, ticketTypesByName, entities, servicios) {
     const reporteType = ticketTypesByName["Reporte de falla"];
     const reportes = reporteType ? tickets.filter(t => t.ticket_type_id === reporteType.id) : [];
 
@@ -222,6 +250,22 @@
     document.getElementById("alertVencidosValue").textContent = vencidos.length;
     alertStyle(document.getElementById("alertVencidos"), document.getElementById("alertVencidosIcon"), vencidos.length > 0, "amber");
     document.getElementById("alertVencidosIcon").textContent = vencidos.length > 0 ? "🟠" : "✅";
+
+    // Servicios de moto próximos o vencidos: el preventivo más reciente por
+    // moto define cuándo toca el siguiente (mismo umbral de 7 días que usa
+    // servicios.html para colorear cada fila).
+    const UMBRAL_SERVICIO_DIAS = 7;
+    const motos = entities.filter(e => (e.atributos || {}).tipo === "Motocicleta");
+    const serviciosProximos = motos.filter(m => {
+      const propios = servicios.filter(s => s.entity_id === m.id && s.tipo === "preventivo" && s.proximo_servicio_fecha);
+      if (!propios.length) return false;
+      const ultimo = propios.reduce((latest, s) => new Date(s.fecha) > new Date(latest.fecha) ? s : latest, propios[0]);
+      const dias = Math.ceil((new Date(ultimo.proximo_servicio_fecha) - Date.now()) / 86400000);
+      return dias <= UMBRAL_SERVICIO_DIAS;
+    });
+    document.getElementById("alertServiciosValue").textContent = serviciosProximos.length;
+    alertStyle(document.getElementById("alertServicios"), document.getElementById("alertServiciosIcon"), serviciosProximos.length > 0, "amber");
+    document.getElementById("alertServiciosIcon").textContent = serviciosProximos.length > 0 ? "🔧" : "✅";
   }
 
   function diasEntre(desde, hasta) {
@@ -482,22 +526,25 @@
     if (!dept) return;
     renderNav("dashboard", dept);
 
-    const [ticketsRes, entitiesRes] = await Promise.all([
+    const [ticketsRes, entitiesRes, serviciosRes] = await Promise.all([
       fetch("/api/admin/tickets"),
-      fetch("/api/admin/entities")
+      fetch("/api/admin/entities"),
+      fetch("/api/admin/servicios")
     ]);
     const ticketsData = await ticketsRes.json();
     const entitiesData = await entitiesRes.json();
+    const serviciosData = serviciosRes.ok ? await serviciosRes.json() : { servicios: [] };
 
     const ticketTypesByName = {};
     (ticketsData.ticket_types || []).forEach(t => ticketTypesByName[t.name] = t);
     const tickets = ticketsData.tickets || [];
     const entities = entitiesData.entities || [];
+    const servicios = serviciosData.servicios || [];
     const entitiesById = {};
     entities.forEach(e => entitiesById[e.id] = e);
 
     renderKpis(tickets);
-    renderAlerts(tickets, ticketTypesByName);
+    renderAlerts(tickets, ticketTypesByName, entities, servicios);
     renderTypeDistribution(tickets, ticketTypesByName);
     renderStatusDistribution(tickets);
     renderIncidentChart(tickets, ticketTypesByName);

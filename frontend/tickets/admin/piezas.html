@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Histórico de Piezas | TicketAM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT: '#2a5298', dark: '#1e3c72' },
+          accent: '#27ae60'
+        }
+      }
+    }
+  }
+</script>
+</head>
+<body class="min-h-screen bg-slate-100 font-sans text-slate-800">
+
+  <div id="adminNav"></div>
+
+  <div class="mx-auto max-w-5xl px-5 py-6 pb-16">
+    <a href="/admin/dashboard" class="mb-4 inline-block text-sm font-semibold text-brand underline">‹ Dashboard</a>
+    <h1 class="mb-1 text-xl font-bold text-brand-dark">Histórico de Piezas</h1>
+    <p class="mb-4 text-sm text-slate-500">Bitácora de refacciones y consumibles solicitados por vehículo.</p>
+
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+      <input id="piezasSearch" type="text" placeholder="Buscar por placa, pieza o solicitante…" class="min-w-[240px] flex-1 rounded-lg border-2 border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand">
+      <span id="piezasCount" class="text-sm text-slate-500"></span>
+    </div>
+
+    <div class="overflow-x-auto rounded-2xl bg-white shadow-sm">
+      <table class="w-full min-w-[720px] text-left text-sm">
+        <thead>
+          <tr class="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+            <th class="px-4 py-3">Vehículo</th>
+            <th class="px-4 py-3">Pieza / refacción</th>
+            <th class="px-4 py-3">Solicitante</th>
+            <th class="px-4 py-3">Observación</th>
+            <th class="px-4 py-3">Estado</th>
+            <th class="px-4 py-3">Fecha</th>
+          </tr>
+        </thead>
+        <tbody id="piezasBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script src="/tickets/admin/admin-shared.js"></script>
+<script>
+  let filas = [];
+
+  async function init() {
+    const dept = await requireSession();
+    if (!dept) return;
+    renderNav("dashboard", dept);
+
+    const [ticketsRes, entitiesRes] = await Promise.all([
+      fetch("/api/admin/tickets"),
+      fetch("/api/admin/entities")
+    ]);
+    const ticketsData = await ticketsRes.json();
+    const entitiesData = await entitiesRes.json();
+
+    const mantenimientoType = (ticketsData.ticket_types || []).find(t => t.name === "Ticket de Mantenimiento");
+    const entitiesById = {};
+    (entitiesData.entities || []).forEach(e => entitiesById[e.id] = e);
+
+    filas = (ticketsData.tickets || [])
+      .filter(t => mantenimientoType && t.ticket_type_id === mantenimientoType.id)
+      .map(t => {
+        const entity = entitiesById[t.entity_id];
+        const campos = t.campos || {};
+        return {
+          placa: entity ? entity.codigo : "—",
+          marcaModelo: entity ? [entity.atributos?.marca, entity.atributos?.modelo].filter(Boolean).join(" ") : "",
+          pieza: campos.pieza_refaccion || "—",
+          solicitante: t.solicitante_nombre,
+          observacion: campos.observaciones || "—",
+          estado: t.estado,
+          fecha: t.created_at
+        };
+      })
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    document.getElementById("piezasSearch").addEventListener("input", render);
+    render();
+  }
+
+  function render() {
+    const query = (document.getElementById("piezasSearch").value || "").trim().toLowerCase();
+    const visibles = !query ? filas : filas.filter(f =>
+      [f.placa, f.pieza, f.solicitante].join(" ").toLowerCase().includes(query)
+    );
+    document.getElementById("piezasCount").textContent = `${visibles.length} de ${filas.length} solicitudes`;
+
+    const body = document.getElementById("piezasBody");
+    if (!visibles.length) {
+      body.innerHTML = `<tr><td colspan="6" class="py-10 text-center text-slate-400">Sin solicitudes de piezas todavía.</td></tr>`;
+      return;
+    }
+    body.innerHTML = visibles.map(f => `
+      <tr class="border-b border-slate-50 last:border-0">
+        <td class="px-4 py-3">
+          <div class="font-mono font-bold text-brand-dark">${f.placa}</div>
+          <div class="text-xs text-slate-400">${f.marcaModelo}</div>
+        </td>
+        <td class="px-4 py-3">${f.pieza}</td>
+        <td class="px-4 py-3">${f.solicitante}</td>
+        <td class="px-4 py-3 text-slate-500">${f.observacion}</td>
+        <td class="px-4 py-3"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">${f.estado}</span></td>
+        <td class="px-4 py-3 text-xs text-slate-400">${formatDate(f.fecha)}</td>
+      </tr>
+    `).join("");
+  }
+
+  init();
+</script>
+</body>
+</html>

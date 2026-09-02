@@ -7,6 +7,7 @@ identifica el departamento automáticamente y abre una sesión de Flask
 limitar cada operación al departamento de esa sesión.
 """
 import base64
+import calendar
 import os
 import secrets
 from datetime import datetime, timezone
@@ -17,7 +18,7 @@ from flask import Blueprint, Response, jsonify, redirect, request, session
 from werkzeug.security import check_password_hash
 
 from app import google_oauth
-from app.demo_data import DEMO_ADMIN_PASSCODES, DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_TICKET_EVENTS, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
+from app.demo_data import DEMO_ADMIN_PASSCODES, DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_SERVICIOS, DEMO_TICKET_EVENTS, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
 from app.extensions import supabase
 from app.mailer import send_observation_email, send_status_update_email, send_vehicle_assigned_email
 from app.photos import download_photo
@@ -37,6 +38,15 @@ def public_base_url() -> str:
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def add_one_month(dt: datetime) -> datetime:
+    """Suma un mes calendario, ajustando el día si el mes destino es más
+    corto (31 ene -> 28/29 feb, no 3 mar)."""
+    year = dt.year + dt.month // 12
+    month = dt.month % 12 + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
 
 
 def error(message: str, status: int):
@@ -436,6 +446,76 @@ def admin_entity_qr(entity_id: str):
 
     png_bytes = generate_labeled_qr_png(entity_qr_url(public_base_url(), codigo), codigo, nombre)
     return Response(png_bytes, mimetype="image/png", headers={"Content-Disposition": f'inline; filename="qr-{codigo}.png"'})
+
+
+@admin_bp.get("/api/admin/servicios")
+@require_admin
+def admin_list_servicios():
+    department_id = session["department_id"]
+
+    if not supabase:
+        servicios = [s for s in DEMO_SERVICIOS if s["department_id"] == department_id]
+        return jsonify({"servicios": servicios, "demo": True})
+
+    result = supabase.table("servicios").select("*").eq("department_id", department_id).order("fecha", desc=True).execute()
+    return jsonify({"servicios": result.data or [], "demo": False})
+
+
+@admin_bp.post("/api/admin/servicios")
+@require_admin
+def admin_create_servicio():
+    """Registra un servicio de moto (módulo "Servicios Programados"). Un
+    preventivo calcula y guarda cuándo toca el siguiente (fecha + 1 mes); un
+    correctivo solo queda en la bitácora, sin afectar ese conteo."""
+    payload = request.get_json(silent=True) or {}
+    entity_id = payload.get("entity_id")
+    tipo = payload.get("tipo")
+    notas = (payload.get("notas") or "").strip() or None
+    fecha_raw = payload.get("fecha")
+    department_id = session["department_id"]
+
+    if not entity_id:
+        return error("entity_id es requerido", 400)
+    if tipo not in {"preventivo", "correctivo"}:
+        return error("tipo debe ser 'preventivo' o 'correctivo'", 400)
+
+    try:
+        fecha_dt = datetime.fromisoformat(fecha_raw) if fecha_raw else datetime.now(timezone.utc)
+    except ValueError:
+        return error("fecha inválida", 400)
+    if fecha_dt.tzinfo is None:
+        fecha_dt = fecha_dt.replace(tzinfo=timezone.utc)
+    fecha_iso = fecha_dt.isoformat()
+    proximo_iso = add_one_month(fecha_dt).isoformat() if tipo == "preventivo" else None
+
+    if not supabase:
+        entity = next((e for e in DEMO_ENTITIES if e["id"] == entity_id and e["department_id"] == department_id), None)
+        if not entity:
+            return error("Vehículo no encontrado", 404)
+        if (entity.get("atributos") or {}).get("tipo") != "Motocicleta":
+            return error("Los servicios programados solo aplican a motocicletas", 400)
+        servicio = {
+            "id": str(uuid4()), "department_id": department_id, "entity_id": entity_id,
+            "tipo": tipo, "fecha": fecha_iso, "proximo_servicio_fecha": proximo_iso,
+            "notas": notas, "created_at": now(),
+        }
+        DEMO_SERVICIOS.insert(0, servicio)
+        return jsonify({"servicio": servicio}), 201
+
+    entity_result = supabase.table("entities").select("id, atributos, department_id").eq("id", entity_id).single().execute()
+    if not entity_result.data or entity_result.data["department_id"] != department_id:
+        return error("Vehículo no encontrado", 404)
+    if (entity_result.data.get("atributos") or {}).get("tipo") != "Motocicleta":
+        return error("Los servicios programados solo aplican a motocicletas", 400)
+
+    record = {
+        "department_id": department_id, "entity_id": entity_id, "tipo": tipo,
+        "fecha": fecha_iso, "proximo_servicio_fecha": proximo_iso, "notas": notas,
+    }
+    result = supabase.table("servicios").insert(record).execute()
+    if not result.data:
+        return error("No se pudo registrar el servicio", 400)
+    return jsonify({"servicio": result.data[0]}), 201
 
 
 @admin_bp.get("/api/admin/settings")
