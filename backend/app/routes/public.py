@@ -10,7 +10,14 @@ from uuid import uuid4
 
 from flask import Blueprint, jsonify, request
 
-from app.demo_data import DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
+from app.demo_data import (
+    DEMO_DEPARTMENT,
+    DEMO_ENTITIES,
+    DEMO_TICKETS,
+    DEMO_TYPE_ASIGNACION,
+    DEMO_TYPE_MANTENIMIENTO,
+    DEMO_TYPE_REPORTE,
+)
 from app.extensions import supabase
 from app.mailer import send_ticket_notification
 from app.photos import upload_photo
@@ -33,7 +40,7 @@ def department(slug: str):
             return error("Departamento no encontrado", 404)
         return jsonify({
             "department": DEMO_DEPARTMENT,
-            "ticket_types": [DEMO_TYPE_REPORTE, DEMO_TYPE_ASIGNACION],
+            "ticket_types": [DEMO_TYPE_REPORTE, DEMO_TYPE_ASIGNACION, DEMO_TYPE_MANTENIMIENTO],
             "entities": DEMO_ENTITIES,
             "demo": True,
         })
@@ -70,8 +77,8 @@ def create_ticket(slug: str):
     if not supabase:
         if slug != "flota":
             return error("Departamento no encontrado", 404)
-        if ticket_type_id == DEMO_TYPE_REPORTE["id"] and not entity_id:
-            return error("Un reporte de falla debe tener un vehículo asociado", 400)
+        if ticket_type_id in {DEMO_TYPE_REPORTE["id"], DEMO_TYPE_MANTENIMIENTO["id"]} and not entity_id:
+            return error("Este tipo de ticket debe tener un vehículo asociado", 400)
         # Una "Solicitud de vehículo" que ya trae entity_id vino de escanear el
         # QR directamente (solo circulación tiene acceso físico a los QR sin
         # tener antes un vehículo asignado) — se autoasigna sin pasar por
@@ -104,8 +111,8 @@ def create_ticket(slug: str):
     type_result = supabase.table("ticket_types").select("name").eq("id", ticket_type_id).single().execute()
     if not type_result.data:
         return error("Tipo de ticket no encontrado", 404)
-    if type_result.data["name"] == "Reporte de falla" and not entity_id:
-        return error("Un reporte de falla debe tener un vehículo asociado", 400)
+    if type_result.data["name"] in {"Reporte de falla", "Ticket de Mantenimiento"} and not entity_id:
+        return error("Este tipo de ticket debe tener un vehículo asociado", 400)
 
     if foto_base64 and type_result.data["name"] == "Reporte de falla":
         try:

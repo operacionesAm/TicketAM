@@ -24,12 +24,13 @@
 
   <div class="mx-auto max-w-5xl px-5 py-6 pb-16">
     <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <button id="typeBtnTodos" onclick="switchTicketType('todos')">📋 Todos</button>
         <button id="typeBtnReporte" onclick="switchTicketType('reporte')">🎫 Reportes</button>
         <button id="typeBtnAsignacion" onclick="switchTicketType('asignacion')">🚗 Asignaciones</button>
+        <button id="typeBtnMantenimiento" onclick="switchTicketType('mantenimiento')">🔧 Mantenimiento</button>
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <button id="viewBtnKanban" onclick="switchView('kanban')">🗂️ Kanban</button>
         <button id="viewBtnLista" onclick="switchView('lista')">📃 Lista</button>
         <button id="viewBtnArchivo" onclick="switchView('archivo')">🗄️ Archivo</button>
@@ -125,6 +126,10 @@
     { label: "Asistencia Urgente", desc: "Ponchaduras en ruta, falta de combustible, vehículo varado o necesidad de grúa." },
     { label: "Mantenimiento Preventivo", desc: "Servicios programados, rotación de llantas, afinaciones o verificación." },
     { label: "Mantenimiento Correctivo", desc: "Reparación o reemplazo de piezas previamente diagnosticadas." }
+  ];
+  const MANTENIMIENTO_TYPES = [
+    { label: "Preventivo", desc: "Refacción o consumible para un servicio programado." },
+    { label: "Correctivo", desc: "Refacción o consumible para reparar algo ya diagnosticado." }
   ];
   const PRIORIDADES = ["Alta", "Media", "Baja"];
   const PRIORIDAD_CLASSES = {
@@ -262,6 +267,7 @@
     document.getElementById("typeBtnTodos").className = (type === "todos" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
     document.getElementById("typeBtnReporte").className = (type === "reporte" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
     document.getElementById("typeBtnAsignacion").className = (type === "asignacion" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
+    document.getElementById("typeBtnMantenimiento").className = (type === "mantenimiento" ? TYPE_TAB_ACTIVE : TYPE_TAB_INACTIVE).join(" ");
     render();
   }
 
@@ -276,9 +282,14 @@
     render();
   }
 
+  const TIPO_NOMBRES = {
+    reporte: "Reporte de falla",
+    asignacion: "Solicitud de vehículo",
+    mantenimiento: "Ticket de Mantenimiento"
+  };
+
   function currentType() {
-    const name = currentTicketType === "reporte" ? "Reporte de falla" : "Solicitud de vehículo";
-    return ticketTypesByName[name] || null;
+    return ticketTypesByName[TIPO_NOMBRES[currentTicketType]] || null;
   }
 
   // "Todos" combina Reportes + Asignaciones. Se usa en Lista y Archivo; el
@@ -302,12 +313,18 @@
     return [...new Set(all)];
   }
 
+  const TIPO_BADGES = {
+    "Reporte de falla": { clase: "bg-amber-100 text-amber-800", label: "🎫 Reporte" },
+    "Solicitud de vehículo": { clase: "bg-sky-100 text-sky-800", label: "🚗 Asignación" },
+    "Ticket de Mantenimiento": { clase: "bg-violet-100 text-violet-800", label: "🔧 Mantenimiento" }
+  };
+
   function tipoBadgeHtml(ticket) {
     if (currentTicketType !== "todos") return "";
     const type = Object.values(ticketTypesByName).find(t => t.id === ticket.ticket_type_id);
-    if (!type) return "";
-    const esReporte = type.name === "Reporte de falla";
-    return `<span class="rounded-full ${esReporte ? "bg-amber-100 text-amber-800" : "bg-sky-100 text-sky-800"} px-2 py-0.5 text-[11px] font-bold">${esReporte ? "🎫 Reporte" : "🚗 Asignación"}</span>`;
+    const badge = type && TIPO_BADGES[type.name];
+    if (!badge) return "";
+    return `<span class="rounded-full ${badge.clase} px-2 py-0.5 text-[11px] font-bold">${badge.label}</span>`;
   }
 
   function render() {
@@ -348,11 +365,21 @@
 
   function classifySelects(ticket) {
     const reporteType = ticketTypesByName["Reporte de falla"];
-    if (!reporteType || ticket.ticket_type_id !== reporteType.id) return "";
+    const mantenimientoType = ticketTypesByName["Ticket de Mantenimiento"];
+    let opciones, placeholder;
+    if (reporteType && ticket.ticket_type_id === reporteType.id) {
+      opciones = INCIDENT_TYPES;
+      placeholder = "Tipo de incidente…";
+    } else if (mantenimientoType && ticket.ticket_type_id === mantenimientoType.id) {
+      opciones = MANTENIMIENTO_TYPES;
+      placeholder = "Preventivo / Correctivo…";
+    } else {
+      return "";
+    }
     return `
       <select class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px]" onchange="classifyTicket('${ticket.id}', 'incidente_tipo', this.value)">
-        <option value="">Tipo de incidente…</option>
-        ${INCIDENT_TYPES.map(i => `<option value="${i.label}" title="${i.desc}" ${ticket.incidente_tipo === i.label ? "selected" : ""}>${i.label}</option>`).join("")}
+        <option value="">${placeholder}</option>
+        ${opciones.map(i => `<option value="${i.label}" title="${i.desc}" ${ticket.incidente_tipo === i.label ? "selected" : ""}>${i.label}</option>`).join("")}
       </select>
       <select class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px]" onchange="classifyTicket('${ticket.id}', 'prioridad', this.value)">
         <option value="">Prioridad…</option>
@@ -363,7 +390,7 @@
 
   function renderCard(ticket) {
     const campos = ticket.campos || {};
-    const resumen = campos.descripcion || campos.proposito || "";
+    const resumen = campos.descripcion || campos.proposito || campos.pieza_refaccion || "";
     const prioridadBadge = ticket.prioridad
       ? `<span class="rounded-full px-2 py-0.5 text-[11px] font-bold ${PRIORIDAD_CLASSES[ticket.prioridad]}">${ticket.prioridad}</span>`
       : "";
@@ -459,7 +486,7 @@
 
   function renderListRow(ticket, estados) {
     const campos = ticket.campos || {};
-    const resumen = campos.descripcion || campos.proposito || "";
+    const resumen = campos.descripcion || campos.proposito || campos.pieza_refaccion || "";
     const prioridadBadge = ticket.prioridad
       ? `<span class="rounded-full px-2 py-0.5 text-[11px] font-bold ${PRIORIDAD_CLASSES[ticket.prioridad]}">${ticket.prioridad}</span>`
       : "";
@@ -509,7 +536,7 @@
 
   function renderArchiveRow(ticket) {
     const campos = ticket.campos || {};
-    const resumen = campos.descripcion || campos.proposito || "";
+    const resumen = campos.descripcion || campos.proposito || campos.pieza_refaccion || "";
     const diasArchivado = Math.floor((Date.now() - new Date(ticket.resolved_at).getTime()) / 86400000);
     return `
       <div class="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3.5 opacity-80 shadow-sm sm:flex-nowrap">
@@ -544,7 +571,9 @@
       ["Operador / solicitante", ticket.solicitante_nombre],
       ["Correo", ticket.solicitante_email],
       ["Número de nómina", campos.numero_nomina || "—"],
-      ["Descripción", campos.descripcion || campos.proposito || "—"],
+      ...(campos.pieza_refaccion
+        ? [["Pieza o refacción", campos.pieza_refaccion], ["Observaciones", campos.observaciones || "—"]]
+        : [["Descripción", campos.descripcion || campos.proposito || "—"]]),
       ["Estado", ticket.estado],
       ["Prioridad", ticket.prioridad || "—"],
       ["Fecha de resolución", ticket.resolved_at ? formatDate(ticket.resolved_at) : "—"]

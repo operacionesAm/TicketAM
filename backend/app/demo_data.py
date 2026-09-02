@@ -35,6 +35,18 @@ DEMO_TYPE_ASIGNACION = {
     "estados": ["Abierto", "Pendiente", "Asignado", "Negado"],
 }
 
+DEMO_TYPE_MANTENIMIENTO = {
+    "id": "demo-mantenimiento",
+    "department_id": "demo-flota",
+    "name": "Ticket de Mantenimiento",
+    "campos_config": [
+        {"key": "pieza_refaccion", "label": "Pieza o refacción", "type": "text", "required": True},
+        {"key": "departamento_solicitante", "label": "Departamento", "type": "text", "required": True},
+        {"key": "observaciones", "label": "Observaciones", "type": "textarea", "required": False},
+    ],
+    "estados": ["Abierto", "Pendiente", "En progreso", "Resuelto", "Cerrado"],
+}
+
 DEMO_ENTITIES = [
     {"id": "demo-veh-1", "department_id": "demo-flota", "codigo": "ABC-123", "nombre": "Nissan NP300", "atributos": {"año": "2022", "estado": "Disponible", "departamento": "Flota"}},
     {"id": "demo-veh-2", "department_id": "demo-flota", "codigo": "XYZ-789", "nombre": "Toyota Hilux", "atributos": {"año": "2021", "estado": "Disponible", "departamento": "Flota"}},
@@ -60,6 +72,10 @@ DEMO_TICKET_EVENTS = [
     {"id": "demo-evt-6", "ticket_id": "demo-4", "accion": "creado", "estado_anterior": None, "estado_nuevo": "Abierto", "comentario": None, "created_at": "2026-08-20T09:05:00Z"},
     {"id": "demo-evt-7", "ticket_id": "demo-4", "accion": "cambio_estado", "estado_anterior": "Abierto", "estado_nuevo": "Asignado", "comentario": None, "created_at": "2026-08-20T09:30:00Z"},
 ]
+
+# Servicios programados de moto (módulo "Servicios Programados") — vacío al
+# arrancar, se llena en memoria al registrar servicios de prueba en modo demo.
+DEMO_SERVICIOS = []
 
 # Solo para desarrollo local sin Supabase. En producción la contraseña vive
 # hasheada en departments.admin_passcode_hash (ver scripts/set_passcode.py).

@@ -38,6 +38,15 @@ DEFAULT_TICKET_TYPES = [
         ],
         "estados": ["Abierto", "Pendiente", "Asignado", "Negado"],
     },
+    {
+        "name": "Ticket de Mantenimiento",
+        "campos_config": [
+            {"key": "pieza_refaccion", "label": "Pieza o refacción", "type": "text", "required": True},
+            {"key": "departamento_solicitante", "label": "Departamento", "type": "text", "required": True},
+            {"key": "observaciones", "label": "Observaciones", "type": "textarea", "required": False},
+        ],
+        "estados": ["Abierto", "Pendiente", "En progreso", "Resuelto", "Cerrado"],
+    },
 ]
 
 ESTADOS_FINALES = {"Resuelto", "Cerrado", "Asignado", "Negado"}

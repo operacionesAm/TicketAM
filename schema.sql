@@ -75,12 +75,24 @@ create table if not exists ticket_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists servicios (
+  id uuid primary key default gen_random_uuid(),
+  department_id uuid not null references departments(id) on delete cascade,
+  entity_id uuid not null references entities(id) on delete cascade,
+  tipo text not null check (tipo in ('preventivo', 'correctivo')),
+  fecha timestamptz not null default now(),
+  proximo_servicio_fecha timestamptz,
+  notas text,
+  created_at timestamptz not null default now()
+);
+
 alter table departments enable row level security;
 alter table department_members enable row level security;
 alter table ticket_types enable row level security;
 alter table entities enable row level security;
 alter table tickets enable row level security;
 alter table ticket_events enable row level security;
+alter table servicios enable row level security;
 
 create or replace function is_department_member(target_department uuid)
 returns boolean language sql stable security definer set search_path = public
@@ -98,6 +110,7 @@ create policy "members read tickets" on tickets for select to authenticated usin
 create policy "members update tickets" on tickets for update to authenticated using (is_department_member(department_id)) with check (is_department_member(department_id));
 create policy "members read events" on ticket_events for select to authenticated using (exists (select 1 from tickets where tickets.id = ticket_events.ticket_id and is_department_member(tickets.department_id)));
 create policy "ticket creation logs events" on ticket_events for insert to anon, authenticated with check (true);
+create policy "members manage servicios" on servicios for all to authenticated using (is_department_member(department_id)) with check (is_department_member(department_id));
 
 insert into departments (slug, name) values ('flota', 'Flota') on conflict (slug) do nothing;
 
@@ -116,6 +129,15 @@ select id, 'Solicitud de vehículo',
     {"key":"numero_nomina","label":"Número de nómina","type":"text","required":true},
     {"key":"proposito","label":"Propósito / Destino","type":"text","required":true}]'::jsonb,
   '["Abierto","Pendiente","Asignado","Negado"]'::jsonb
+from departments where slug = 'flota'
+on conflict (department_id, name) do nothing;
+
+insert into ticket_types (department_id, name, campos_config, estados)
+select id, 'Ticket de Mantenimiento',
+  '[{"key":"pieza_refaccion","label":"Pieza o refacción","type":"text","required":true},
+    {"key":"departamento_solicitante","label":"Departamento","type":"text","required":true},
+    {"key":"observaciones","label":"Observaciones","type":"textarea","required":false}]'::jsonb,
+  '["Abierto","Pendiente","En progreso","Resuelto","Cerrado"]'::jsonb
 from departments where slug = 'flota'
 on conflict (department_id, name) do nothing;
 

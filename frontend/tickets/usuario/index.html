@@ -42,13 +42,14 @@
     <div id="intentScreen" class="hidden">
       <p class="mb-6 text-center text-sm text-slate-500">¿Qué necesitas hacer?</p>
       <button class="mb-3.5 w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('asignacion')">🚗 Pedir un vehículo</button>
-      <button class="w-full rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('reporte')">🎫 Levantar ticket</button>
+      <button class="mb-3.5 w-full rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('reporte')">🎫 Levantar ticket</button>
+      <button class="w-full rounded-xl bg-gradient-to-br from-sky-500 to-sky-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-sky-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('mantenimiento')">🔧 Solicitar refacción</button>
     </div>
 
     <!-- SELECTOR DE VEHÍCULO -->
     <div id="selectorScreen" class="hidden">
       <button class="mx-auto mb-5 block text-sm font-semibold text-brand underline" onclick="volverAIntent()">‹ Volver</button>
-      <p class="mb-6 text-center text-sm text-slate-500">Selecciona el vehículo con la incidencia</p>
+      <p id="selectorSubtitle" class="mb-6 text-center text-sm text-slate-500">Selecciona el vehículo con la incidencia</p>
 
       <button id="scanBtn" class="w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="iniciarEscaneo()">📷 Escanear QR del vehículo</button>
 
@@ -122,9 +123,10 @@
 
       <h2 id="tituloFormulario" class="mb-4.5 hidden text-lg font-bold text-brand-dark"></h2>
 
-      <div id="toggleGroup" class="mb-7 grid grid-cols-2 gap-3">
-        <button id="toggleAsignacion" class="rounded-xl border-2 border-brand-dark bg-gradient-to-br from-brand to-brand-dark px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/30 transition" onclick="toggleType('asignacion')">✅ Asignación</button>
-        <button id="toggleReporte" class="rounded-xl border-2 border-slate-200 bg-white px-4 py-3.5 text-sm font-semibold text-slate-700 transition hover:border-brand" onclick="toggleType('reporte')">⚠️ Reporte</button>
+      <div id="toggleGroup" class="mb-7 grid grid-cols-3 gap-2">
+        <button id="toggleAsignacion" class="rounded-xl border-2 border-brand-dark bg-gradient-to-br from-brand to-brand-dark px-2 py-3.5 text-xs font-semibold text-white shadow-lg shadow-brand/30 transition" onclick="toggleType('asignacion')">✅ Asignación</button>
+        <button id="toggleReporte" class="rounded-xl border-2 border-slate-200 bg-white px-2 py-3.5 text-xs font-semibold text-slate-700 transition hover:border-brand" onclick="toggleType('reporte')">⚠️ Reporte</button>
+        <button id="toggleMantenimiento" class="rounded-xl border-2 border-slate-200 bg-white px-2 py-3.5 text-xs font-semibold text-slate-700 transition hover:border-brand" onclick="toggleType('mantenimiento')">🔧 Refacción</button>
       </div>
 
       <div id="formAsignacion" class="mb-5.5">
@@ -148,6 +150,18 @@
             <img id="fotoPreview" class="max-h-48 rounded-lg border-2 border-slate-100 object-contain">
             <button type="button" class="mt-2 block text-xs font-semibold text-red-600 underline" onclick="quitarFoto()">Quitar foto</button>
           </div>
+        </div>
+      </div>
+
+      <div id="formMantenimiento" class="mb-5.5 hidden">
+        <div class="mb-5">
+          <label for="piezaRefaccion" class="mb-2 block text-sm font-semibold text-brand-dark">🔧 Pieza o refacción</label>
+          <p class="-mt-1 mb-2 text-xs leading-snug text-slate-400">Ej: aceite de motor, anticongelante, llanta trasera, balatas.</p>
+          <input type="text" id="piezaRefaccion" placeholder="Ej: Aceite de motor 20W-50" required class="w-full rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10">
+        </div>
+        <div class="mb-5">
+          <label for="observacionesMantenimiento" class="mb-2 block text-sm font-semibold text-brand-dark">📝 Observaciones (opcional)</label>
+          <textarea id="observacionesMantenimiento" placeholder="Cualquier detalle adicional que ayude a surtir la pieza correcta." class="min-h-[80px] w-full resize-y rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10"></textarea>
         </div>
       </div>
 
@@ -186,18 +200,31 @@
     const FOTO_MAX_LADO = 1600;
     const FOTO_CALIDAD = 0.8;
 
+    const TITULOS_FORMULARIO = {
+      asignacion: "🚗 Pedir un vehículo",
+      reporte: "🎫 Levantar ticket",
+      mantenimiento: "🔧 Solicitar refacción"
+    };
+    const SUBTITULOS_SELECTOR = {
+      reporte: "Selecciona el vehículo con la incidencia",
+      mantenimiento: "Selecciona el vehículo para el que necesitas la refacción"
+    };
+
     let VEHICULOS = [];
     let TICKET_TYPE_REPORTE = null;
     let TICKET_TYPE_ASIGNACION = null;
+    let TICKET_TYPE_MANTENIMIENTO = null;
 
-    const TOGGLE_ACTIVE = ["rounded-xl", "border-2", "border-brand-dark", "bg-gradient-to-br", "from-brand", "to-brand-dark", "px-4", "py-3.5", "text-sm", "font-semibold", "text-white", "shadow-lg", "shadow-brand/30", "transition"];
-    const TOGGLE_INACTIVE = ["rounded-xl", "border-2", "border-slate-200", "bg-white", "px-4", "py-3.5", "text-sm", "font-semibold", "text-slate-700", "transition", "hover:border-brand"];
+    const TOGGLE_ACTIVE = ["rounded-xl", "border-2", "border-brand-dark", "bg-gradient-to-br", "from-brand", "to-brand-dark", "px-2", "py-3.5", "text-xs", "font-semibold", "text-white", "shadow-lg", "shadow-brand/30", "transition"];
+    const TOGGLE_INACTIVE = ["rounded-xl", "border-2", "border-slate-200", "bg-white", "px-2", "py-3.5", "text-xs", "font-semibold", "text-slate-700", "transition", "hover:border-brand"];
 
     function setToggleButtons(activo) {
       const asignacionBtn = document.getElementById("toggleAsignacion");
       const reporteBtn = document.getElementById("toggleReporte");
+      const mantenimientoBtn = document.getElementById("toggleMantenimiento");
       asignacionBtn.className = (activo === "asignacion" ? TOGGLE_ACTIVE : TOGGLE_INACTIVE).join(" ");
       reporteBtn.className = (activo === "reporte" ? TOGGLE_ACTIVE : TOGGLE_INACTIVE).join(" ");
+      mantenimientoBtn.className = (activo === "mantenimiento" ? TOGGLE_ACTIVE : TOGGLE_INACTIVE).join(" ");
     }
 
     async function cargarDatosDepartamento() {
@@ -217,6 +244,7 @@
 
         TICKET_TYPE_REPORTE = (datos.ticket_types || []).find(t => t.name === "Reporte de falla") || null;
         TICKET_TYPE_ASIGNACION = (datos.ticket_types || []).find(t => t.name === "Solicitud de vehículo") || null;
+        TICKET_TYPE_MANTENIMIENTO = (datos.ticket_types || []).find(t => t.name === "Ticket de Mantenimiento") || null;
     }
 
     function getPlacaFromURL() {
@@ -243,6 +271,7 @@
     function mostrarSeccionFormulario(tipo) {
         document.getElementById("formAsignacion").classList.toggle("hidden", tipo !== "asignacion");
         document.getElementById("formReporte").classList.toggle("hidden", tipo !== "reporte");
+        document.getElementById("formMantenimiento").classList.toggle("hidden", tipo !== "mantenimiento");
         setToggleButtons(tipo);
         actualizarCampoNomina(tipo);
     }
@@ -275,7 +304,7 @@
             tipoActual = "asignacion";
             mostrarSeccionFormulario("asignacion");
         } else {
-            tituloFormulario.textContent = tipoActual === "asignacion" ? "🚗 Pedir un vehículo" : "🎫 Levantar ticket";
+            tituloFormulario.textContent = TITULOS_FORMULARIO[tipoActual] || TITULOS_FORMULARIO.reporte;
             tituloFormulario.classList.remove("hidden");
             mostrarSeccionFormulario(tipoActual);
         }
@@ -304,8 +333,9 @@
 
     function elegirIntento(tipo) {
         tipoActual = tipo;
-        if (tipo === "reporte") {
-            modoFlujo = "universalReporte";
+        if (tipo === "reporte" || tipo === "mantenimiento") {
+            modoFlujo = tipo === "reporte" ? "universalReporte" : "universalMantenimiento";
+            document.getElementById("selectorSubtitle").textContent = SUBTITULOS_SELECTOR[tipo];
             document.getElementById("intentScreen").classList.add("hidden");
             document.getElementById("selectorScreen").classList.remove("hidden");
         } else {
@@ -454,11 +484,14 @@
         document.getElementById("successDiv").classList.remove("hidden");
         document.getElementById("folioDisplay").textContent = folio;
 
-        const esSolicitud = modoFlujo === "universalSolicitud" || (modoFlujo === "directo" && tipoActual === "asignacion");
-        document.getElementById("successTitulo").textContent = esSolicitud ? "¡Solicitud Registrada!" : "¡Ticket Registrado!";
-        document.getElementById("successTexto").textContent = esSolicitud
-            ? "Tu solicitud de vehículo quedó registrada. El equipo de flota la revisará y te asignará una unidad."
-            : "Tu reporte ha sido registrado exitosamente en el sistema.";
+        const mensajes = {
+            asignacion: { titulo: "¡Solicitud Registrada!", texto: "Tu solicitud de vehículo quedó registrada. El equipo de flota la revisará y te asignará una unidad." },
+            reporte: { titulo: "¡Ticket Registrado!", texto: "Tu reporte ha sido registrado exitosamente en el sistema." },
+            mantenimiento: { titulo: "¡Solicitud Registrada!", texto: "Tu solicitud de refacción quedó registrada. El equipo de flota la revisará y te avisará cuando esté lista." }
+        };
+        const mensaje = mensajes[tipoActual] || mensajes.reporte;
+        document.getElementById("successTitulo").textContent = mensaje.titulo;
+        document.getElementById("successTexto").textContent = mensaje.texto;
     }
 
     async function submitForm() {
@@ -469,7 +502,7 @@
             return;
         }
 
-        const ticketType = tipoActual === "asignacion" ? TICKET_TYPE_ASIGNACION : TICKET_TYPE_REPORTE;
+        const ticketType = { asignacion: TICKET_TYPE_ASIGNACION, reporte: TICKET_TYPE_REPORTE, mantenimiento: TICKET_TYPE_MANTENIMIENTO }[tipoActual];
         if (!ticketType) {
             showError("El sistema no tiene configurado este tipo de ticket todavía.");
             return;
@@ -502,6 +535,12 @@
             const proposito = document.getElementById("proposito").value.trim();
             if (!proposito) { showError("Por favor completa todos los campos"); return; }
             campos.proposito = proposito;
+        } else if (tipoActual === "mantenimiento") {
+            const pieza = document.getElementById("piezaRefaccion").value.trim();
+            if (!pieza) { showError("Por favor indica qué pieza o refacción necesitas"); return; }
+            campos.pieza_refaccion = pieza;
+            const observaciones = document.getElementById("observacionesMantenimiento").value.trim();
+            if (observaciones) campos.observaciones = observaciones;
         } else {
             const desc = document.getElementById("descripcion").value.trim();
             if (!desc) { showError("Por favor describe qué pasó"); return; }
