@@ -47,10 +47,14 @@ DEMO_TYPE_MANTENIMIENTO = {
     "estados": ["Abierto", "Pendiente", "En progreso", "Resuelto", "Cerrado"],
 }
 
+# "estado" usa Activo/Inactivo — el mismo par de valores que el inventario
+# real (vehiculos.json) y que inventario.html sabe filtrar; "Inactivo" es
+# además el único valor que el backend trata de forma especial (bloquea
+# asignar la unidad a un ticket).
 DEMO_ENTITIES = [
-    {"id": "demo-veh-1", "department_id": "demo-flota", "codigo": "ABC-123", "nombre": "Nissan NP300", "atributos": {"año": "2022", "estado": "Disponible", "departamento": "Flota"}},
-    {"id": "demo-veh-2", "department_id": "demo-flota", "codigo": "XYZ-789", "nombre": "Toyota Hilux", "atributos": {"año": "2021", "estado": "Disponible", "departamento": "Flota"}},
-    {"id": "demo-veh-3", "department_id": "demo-flota", "codigo": "DEF-456", "nombre": "Chevrolet Silverado", "atributos": {"año": "2023", "estado": "En taller", "departamento": "Flota"}},
+    {"id": "demo-veh-1", "department_id": "demo-flota", "codigo": "ABC-123", "nombre": "Nissan NP300", "atributos": {"año": "2022", "estado": "Activo", "departamento": "Flota"}},
+    {"id": "demo-veh-2", "department_id": "demo-flota", "codigo": "XYZ-789", "nombre": "Toyota Hilux", "atributos": {"año": "2021", "estado": "Activo", "departamento": "Flota"}},
+    {"id": "demo-veh-3", "department_id": "demo-flota", "codigo": "DEF-456", "nombre": "Chevrolet Silverado", "atributos": {"año": "2023", "estado": "Inactivo", "departamento": "Flota"}},
 ]
 
 DEMO_TICKETS = [

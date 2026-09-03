@@ -82,7 +82,7 @@
   async function init() {
     const dept = await requireSession();
     if (!dept) return;
-    renderNav("dashboard", dept);
+    renderNav("servicios", dept);
 
     const [entitiesRes, serviciosRes] = await Promise.all([
       fetch("/api/admin/entities"),

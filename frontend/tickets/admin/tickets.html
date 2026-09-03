@@ -79,7 +79,9 @@
           <button class="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700" onclick="confirmarAsignacion()">Asignar</button>
           <button class="rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white hover:bg-red-600" onclick="negarVehiculo()">✕ Negar</button>
         </div>
-        <p class="mt-1 text-xs text-slate-400">Al asignar una unidad el ticket pasa a "Asignado" y se notifica por correo al solicitante.</p>
+        <div class="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          ⚠️ Al asignar, el ticket pasa a "Asignado" y se le notifica por correo al solicitante que, como último paso obligatorio, debe presentar una copia de su licencia de conducir para tomar la unidad.
+        </div>
       </div>
 
       <div class="mb-5">
@@ -150,11 +152,21 @@
   }
 
   async function loadTickets() {
-    const [ticketsRes, entitiesRes] = await Promise.all([
-      fetch("/api/admin/tickets"),
-      fetch("/api/admin/entities")
-    ]);
+    let ticketsRes, entitiesRes;
+    try {
+      [ticketsRes, entitiesRes] = await Promise.all([
+        fetch("/api/admin/tickets"),
+        fetch("/api/admin/entities")
+      ]);
+    } catch {
+      document.getElementById("kanbanBoard").innerHTML = '<div class="py-16 text-center text-red-500">No se pudo conectar con el servidor. Revisa tu conexión y recarga la página.</div>';
+      return;
+    }
     if (ticketsRes.status === 401) { location.href = "/admin"; return; }
+    if (!ticketsRes.ok) {
+      document.getElementById("kanbanBoard").innerHTML = '<div class="py-16 text-center text-red-500">No se pudieron cargar los tickets. Recarga la página; si el problema sigue, contacta a Sistemas.</div>';
+      return;
+    }
     const data = await ticketsRes.json();
     ticketTypesByName = {};
     (data.ticket_types || []).forEach(t => ticketTypesByName[t.name] = t);
@@ -179,7 +191,7 @@
   function vehiculoBadgeHtml(ticket) {
     const vehiculo = vehiculoLabel(ticket);
     if (!vehiculo) return "";
-    return `<span class="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-bold text-brand-dark">${vehiculo.placa}</span>`;
+    return `<span class="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-bold text-brand-dark">${esc(vehiculo.placa)}</span>`;
   }
 
   // Solo "Solicitud de vehículo" puede recibir la asignación de una unidad
@@ -196,13 +208,22 @@
   }
 
   function vehiculoOptionsHtml(selectedEntityId) {
-    return activeEntities()
+    // Incluye siempre la unidad ya asignada, aunque después se haya marcado
+    // Inactivo — si no, el <select> "pierde" la selección y muestra "sin
+    // asignar" mientras el badge de placa sigue mostrando el vehículo real.
+    const opciones = activeEntities();
+    const seleccionada = selectedEntityId && entitiesById[selectedEntityId];
+    if (seleccionada && !opciones.some(e => e.id === selectedEntityId)) {
+      opciones.push(seleccionada);
+    }
+    return opciones
       .slice()
       .sort((a, b) => a.codigo.localeCompare(b.codigo))
       .map(e => {
         const a = e.atributos || {};
-        const label = [e.codigo, [a.marca, a.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" — ");
-        return `<option value="${e.id}" ${selectedEntityId === e.id ? "selected" : ""}>${label}</option>`;
+        const inactivo = a.estado === "Inactivo" ? " (Inactivo)" : "";
+        const label = [e.codigo, [a.marca, a.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" — ") + inactivo;
+        return `<option value="${e.id}" ${selectedEntityId === e.id ? "selected" : ""}>${esc(label)}</option>`;
       }).join("");
   }
 
@@ -218,6 +239,12 @@
   async function assignVehiculo(ticketId, entityId) {
     const ticket = allTickets.find(t => t.id === ticketId);
     if (!ticket) return;
+    if (!entityId && ticket.entity_id) {
+      if (!confirm("Esto quita el vehículo asignado a este ticket, sin cambiar su estado. ¿Continuar?")) {
+        render();
+        return;
+      }
+    }
     const response = await fetch(`/api/admin/tickets/${ticketId}/vehiculo`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -409,8 +436,8 @@
           <div class="font-mono text-[11px] font-bold text-slate-400">${ticket.folio}</div>
           ${prioridadBadge}
         </div>
-        <div class="mt-1 text-sm font-bold text-brand-dark">${ticket.solicitante_nombre}</div>
-        <div class="mt-1 text-xs text-slate-500">${resumen}</div>
+        <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+        <div class="mt-1 text-xs text-slate-500">${esc(resumen)}</div>
         <div class="mt-1.5 flex items-center gap-1.5">${vehiculoBadgeHtml(ticket)}${fotoBadgeHtml(ticket)}</div>
         <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
         ${classifyHtml}
@@ -423,14 +450,22 @@
   async function classifyTicket(ticketId, field, value) {
     const ticket = allTickets.find(t => t.id === ticketId);
     if (!ticket) return;
+    const previo = ticket[field];
     ticket[field] = value || null;
     const response = await fetch(`/api/admin/tickets/${ticketId}/classify`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ incidente_tipo: ticket.incidente_tipo || null, prioridad: ticket.prioridad || null })
     });
-    if (!response.ok) { alert("No se pudo clasificar el ticket."); }
+    if (!response.ok) {
+      ticket[field] = previo;
+      alert("No se pudo clasificar el ticket.");
+    } else {
+      const data = await response.json();
+      Object.assign(ticket, data.ticket);
+    }
     render();
+    if (detailTicketId === ticketId) openDetail(ticketId);
   }
 
   async function moveTicket(ticketId, nuevoEstado) {
@@ -448,7 +483,12 @@
       ticket.estado = previo;
       render();
       alert("No se pudo mover el ticket.");
+      return;
     }
+    const data = await response.json();
+    Object.assign(ticket, data.ticket);
+    render();
+    if (detailTicketId === ticketId) openDetail(ticketId);
   }
 
   function switchListStatusFilter(estado) {
@@ -500,8 +540,8 @@
             ${tipoBadgeHtml(ticket)}
             ${prioridadBadge}
           </div>
-          <div class="mt-1 text-sm font-bold text-brand-dark">${ticket.solicitante_nombre}</div>
-          <div class="mt-1 truncate text-xs text-slate-500">${resumen}</div>
+          <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+          <div class="mt-1 truncate text-xs text-slate-500">${esc(resumen)}</div>
           <div class="mt-1.5 flex items-center gap-1.5">${vehiculoBadgeHtml(ticket)}${fotoBadgeHtml(ticket)}</div>
           <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
           <button class="mt-1.5 text-[11px] font-semibold text-brand underline" onclick="openDetail('${ticket.id}')">Ver detalle</button>
@@ -548,8 +588,8 @@
             ${tipoBadgeHtml(ticket)}
             <span class="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">${ticket.estado}</span>
           </div>
-          <div class="mt-1 text-sm font-bold text-brand-dark">${ticket.solicitante_nombre}</div>
-          <div class="mt-1 truncate text-xs text-slate-500">${resumen}</div>
+          <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+          <div class="mt-1 truncate text-xs text-slate-500">${esc(resumen)}</div>
           <div class="mt-1.5 flex items-center gap-1.5">${vehiculoBadgeHtml(ticket)}${fotoBadgeHtml(ticket)}</div>
           <div class="mt-1 text-[11px] text-slate-400">Resuelto el ${formatDate(ticket.resolved_at)} · archivado hace ${diasArchivado} días</div>
         </div>
@@ -582,8 +622,8 @@
     ];
     document.getElementById("detailInfo").innerHTML = info.map(([label, value]) => `
       <div>
-        <div class="text-[11px] font-bold uppercase tracking-wide text-slate-400">${label}</div>
-        <div class="text-slate-700">${value}</div>
+        <div class="text-[11px] font-bold uppercase tracking-wide text-slate-400">${esc(label)}</div>
+        <div class="text-slate-700">${esc(value)}</div>
       </div>
     `).join("");
 
@@ -633,7 +673,7 @@
     }
     el.innerHTML = observaciones.map(e => `
       <div class="rounded-lg bg-slate-50 p-2.5 text-xs">
-        <div class="text-slate-700">${e.comentario}</div>
+        <div class="text-slate-700">${esc(e.comentario)}</div>
         <div class="mt-1 text-[10px] text-slate-400">${formatDate(e.created_at)}</div>
       </div>
     `).join("");

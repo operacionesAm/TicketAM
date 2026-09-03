@@ -81,6 +81,27 @@ def send_observation_email(department: dict, ticket: dict, comentario: str) -> N
     _dispatch(department, to_email, subject, body)
 
 
+def send_vehicle_request_received_email(department: dict, ticket: dict) -> None:
+    """Avisa al solicitante que su "Pedir un vehículo" quedó registrada
+    (todavía sin unidad — eso lo hace send_vehicle_assigned_email cuando el
+    admin autoriza) y adelanta el requisito de la licencia, para que lo
+    traiga listo desde ahora y no se le junte al momento de recoger la
+    unidad."""
+    to_email = ticket.get("solicitante_email")
+    if not to_email:
+        return
+    department_name = (department or {}).get("name") or ""
+    subject = f"[TicketAM] Recibimos tu solicitud de vehículo {ticket.get('folio', '')}"
+    body = (
+        f"Hola {ticket.get('solicitante_nombre', '')},\n\n"
+        f"Recibimos tu solicitud de vehículo {ticket.get('folio', '')} en {department_name}. "
+        "El equipo de flota la revisará y te avisará por este medio en cuanto se te asigne una unidad.\n\n"
+        "Como último paso obligatorio para poder tomar el vehículo, deberás presentar una copia "
+        "de tu licencia de conducir."
+    )
+    _dispatch(department, to_email, subject, body)
+
+
 def send_vehicle_assigned_email(department: dict, ticket: dict, entity: dict) -> None:
     """Avisa al solicitante que su solicitud de vehículo fue autorizada y qué
     unidad se le asignó, más el requisito de llevar copia de su licencia de

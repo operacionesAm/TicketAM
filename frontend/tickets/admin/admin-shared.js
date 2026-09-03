@@ -9,6 +9,21 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
+// Escapa texto de origen no confiable (lo escribe el solicitante público,
+// sin login) antes de insertarlo con innerHTML — sin esto, un nombre o
+// descripción con HTML/JS se ejecutaría en la sesión del admin que abre el
+// ticket. Usar siempre para solicitante_nombre, solicitante_email, campos.*
+// y comentarios de observación.
+function esc(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function requireSession() {
   const response = await fetch("/api/admin/me");
   if (!response.ok) {

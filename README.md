@@ -32,7 +32,8 @@ backend/
 
 frontend/
   tickets/
-    usuario/index.html             # página del solicitante (QR / liga pública) -> "/"
+    usuario/index.html             # página del colaborador común (QR / liga pública) -> "/"
+    operador/index.html            # página del operador de unidad (QR / liga pública) -> "/operador"
     admin/                         # panel de administrador, dividido en varias pantallas
       admin-shared.js                 # sesión, barra de navegación, utilidades y picker de vehículo compartidos
       login.html                      # bienvenida + contraseña -> "/admin"
@@ -66,14 +67,32 @@ calculado en el navegador, sin columna ni job nuevo). Un cuarto tab, **Todos**, 
 Reportes + Asignaciones en Lista y Archivo (el Kanban se queda por tipo, porque sus columnas
 son los estados de un solo tipo).
 
+## Dos formularios públicos: colaborador común vs. operador
+
+El registro de tickets vive en dos páginas separadas, ambas públicas (sin login) y sobre el
+mismo departamento (`flota`):
+
+- **`/` — colaborador común.** Dos opciones: "Pedir un vehículo" (nunca elige la unidad —
+  el campo `entity_id` siempre va vacío, flota asigna después) y "Levantar ticket" (reporta
+  una falla sobre un vehículo puntual, eligiendo la placa o escaneando su QR). No hay
+  "Solicitar refacción" aquí — ese pedido es exclusivo del operador.
+- **`/operador` — operador de unidad.** Muestra las mismas tres acciones (Pedir un
+  vehículo / Levantar ticket / Solicitar refacción), pero las tres empiezan eligiendo o
+  escaneando la unidad — incluida "Pedir un vehículo": a diferencia del colaborador común,
+  el operador sí elige qué unidad toma, y por traer `entity_id` desde la creación el backend
+  la autoriza de inmediato (ver siguiente sección), sin esperar revisión de flota.
+
+Ambas páginas comparten la misma API pública y el mismo QR físico de cada vehículo (que
+sigue apuntando a `/?placa=...`) — el botón "Escanear QR" del operador lee esa misma
+calcomanía con su propio lector en pantalla, sin necesidad de reimprimir nada.
+
 ## Reportes de falla: vehículo obligatorio y foto opcional
 
 Un reporte de falla (`POST /api/departments/{slug}/tickets` con el tipo "Reporte de falla")
 **siempre** debe traer `entity_id` — el backend lo rechaza con 400 si falta. Tiene sentido con
-el flujo del formulario público: para "Levantar ticket" siempre se elige o escanea un vehículo
-primero; solo "Pedir un vehículo" (Asignación) puede quedar sin vehículo, porque ahí es
-flota quien asigna la unidad después (a menos que sea alguien de Circulación que ya escaneó
-el QR de una unidad específica).
+el flujo de ambos formularios públicos: para "Levantar ticket" siempre se elige o escanea un
+vehículo primero; solo "Pedir un vehículo" del colaborador común puede quedar sin vehículo,
+porque ahí es flota quien asigna la unidad después.
 
 El formulario de reporte también permite adjuntar una foto (`campos.foto_path` en el
 ticket). No importa el tamaño/calidad que suba el personal desde su celular: se reduce en

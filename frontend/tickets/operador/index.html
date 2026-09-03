@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tickets Vehiculares AM</title>
+<title>Control de Operadores AM</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -30,7 +30,7 @@
     <!-- HEADER -->
     <div class="mb-8 border-b-[3px] border-brand-dark pb-5 text-center">
       <img src="/tickets/assets/logo-am.png" alt="AM" class="mx-auto mb-3 h-14">
-      <h1 class="text-2xl font-bold text-brand-dark">Tickets Vehiculares</h1>
+      <h1 class="text-2xl font-bold text-brand-dark">Control de Operadores</h1>
       <p class="text-sm text-slate-500">Grupo AM · Flota</p>
     </div>
 
@@ -42,13 +42,14 @@
     <div id="intentScreen" class="hidden">
       <p class="mb-6 text-center text-sm text-slate-500">¿Qué necesitas hacer?</p>
       <button class="mb-3.5 w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('asignacion')">🚗 Pedir un vehículo</button>
-      <button class="w-full rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('reporte')">🎫 Levantar ticket</button>
+      <button class="mb-3.5 w-full rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('reporte')">🎫 Levantar ticket</button>
+      <button class="w-full rounded-xl bg-gradient-to-br from-sky-500 to-sky-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-sky-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('mantenimiento')">🔧 Solicitar refacción</button>
     </div>
 
     <!-- SELECTOR DE VEHÍCULO -->
     <div id="selectorScreen" class="hidden">
       <button class="mx-auto mb-5 block text-sm font-semibold text-brand underline" onclick="volverAIntent()">‹ Volver</button>
-      <p id="selectorSubtitle" class="mb-6 text-center text-sm text-slate-500">Selecciona el vehículo con la incidencia</p>
+      <p id="selectorSubtitle" class="mb-6 text-center text-sm text-slate-500">Selecciona o escanea tu unidad</p>
 
       <button id="scanBtn" class="w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="iniciarEscaneo()">📷 Escanear QR del vehículo</button>
 
@@ -85,7 +86,7 @@
       </div>
 
       <div class="mb-5">
-        <label for="nombreSolicitante" class="mb-2 block text-sm font-semibold text-brand-dark">👤 Nombre de quien levanta el ticket</label>
+        <label for="nombreSolicitante" class="mb-2 block text-sm font-semibold text-brand-dark">👤 Nombre del operador</label>
         <input type="text" id="nombreSolicitante" placeholder="Ej: Juan Pérez" required class="w-full rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10">
       </div>
 
@@ -122,6 +123,12 @@
 
       <h2 id="tituloFormulario" class="mb-4.5 hidden text-lg font-bold text-brand-dark"></h2>
 
+      <div id="toggleGroup" class="mb-7 hidden grid grid-cols-3 gap-2">
+        <button id="toggleAsignacion" class="rounded-xl border-2 border-brand-dark bg-gradient-to-br from-brand to-brand-dark px-2 py-3.5 text-xs font-semibold text-white shadow-lg shadow-brand/30 transition" onclick="toggleType('asignacion')">✅ Asignación</button>
+        <button id="toggleReporte" class="rounded-xl border-2 border-slate-200 bg-white px-2 py-3.5 text-xs font-semibold text-slate-700 transition hover:border-brand" onclick="toggleType('reporte')">⚠️ Reporte</button>
+        <button id="toggleMantenimiento" class="rounded-xl border-2 border-slate-200 bg-white px-2 py-3.5 text-xs font-semibold text-slate-700 transition hover:border-brand" onclick="toggleType('mantenimiento')">🔧 Refacción</button>
+      </div>
+
       <div id="formAsignacion" class="mb-5.5">
         <div class="mb-5">
           <label for="proposito" class="mb-2 block text-sm font-semibold text-brand-dark">🎯 Propósito / Destino</label>
@@ -146,6 +153,18 @@
         </div>
       </div>
 
+      <div id="formMantenimiento" class="mb-5.5 hidden">
+        <div class="mb-5">
+          <label for="piezaRefaccion" class="mb-2 block text-sm font-semibold text-brand-dark">🔧 Pieza o refacción</label>
+          <p class="-mt-1 mb-2 text-xs leading-snug text-slate-400">Ej: aceite de motor, anticongelante, llanta trasera, balatas.</p>
+          <input type="text" id="piezaRefaccion" placeholder="Ej: Aceite de motor 20W-50" required class="w-full rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10">
+        </div>
+        <div class="mb-5">
+          <label for="observacionesMantenimiento" class="mb-2 block text-sm font-semibold text-brand-dark">📝 Observaciones (opcional)</label>
+          <textarea id="observacionesMantenimiento" placeholder="Cualquier detalle adicional que ayude a surtir la pieza correcta." class="min-h-[80px] w-full resize-y rounded-lg border-2 border-slate-200 bg-slate-50 px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10"></textarea>
+        </div>
+      </div>
+
       <button class="w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="submitForm()">✅ Enviar Ticket</button>
     </div>
 
@@ -165,14 +184,14 @@
         <div id="folioDisplay" class="font-mono text-2xl font-bold text-brand">TKT-XXXXX</div>
       </div>
       <div id="successLicenciaNote" class="mb-5 hidden rounded-xl border-2 border-amber-400 bg-amber-50 p-4 text-left text-sm text-amber-900">
-        <strong>⚠️ Último paso obligatorio:</strong> cuando flota te asigne la unidad, deberás presentar una copia de tu licencia de conducir para poder tomarla. Te lo recordaremos también por correo.
+        <strong>⚠️ Obligatorio:</strong> para tomar la unidad debes presentar una copia de tu licencia de conducir. Te lo confirmamos también por correo.
       </div>
       <p class="mt-5 text-[13px] text-slate-500">ℹ️ Guarda este folio para futuros seguimientos</p>
       <button class="mt-5 w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="location.reload()">↻ Registrar otro</button>
     </div>
   </div>
 
-  <p class="mx-auto mt-5 w-full max-w-lg text-center text-xs text-white/70">¿Eres operador de unidad? <a href="/operador" class="font-semibold text-white underline">Entra a tu panel</a></p>
+  <p class="mx-auto mt-5 w-full max-w-lg text-center text-xs text-white/70">¿No eres operador? <a href="/" class="font-semibold text-white underline">Ir al panel general</a></p>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script>
@@ -181,22 +200,29 @@
     let tipoActual = "asignacion";
     let vehicleData = null;
     let html5QrCode = null;
-    let modoFlujo = "universal"; // "universalReporte" | "universalSolicitud"
     let fotoBase64 = null;
     const FOTO_MAX_LADO = 1600;
     const FOTO_CALIDAD = 0.8;
 
-    const TITULOS_FORMULARIO = {
-      asignacion: "🚗 Pedir un vehículo",
-      reporte: "🎫 Levantar ticket"
-    };
     const SUBTITULOS_SELECTOR = {
-      reporte: "Selecciona el vehículo con la incidencia"
+      asignacion: "Selecciona o escanea la unidad que vas a tomar",
+      reporte: "Selecciona el vehículo con la incidencia",
+      mantenimiento: "Selecciona el vehículo para el que necesitas la refacción"
     };
 
     let VEHICULOS = [];
     let TICKET_TYPE_REPORTE = null;
     let TICKET_TYPE_ASIGNACION = null;
+    let TICKET_TYPE_MANTENIMIENTO = null;
+
+    const TOGGLE_ACTIVE = ["rounded-xl", "border-2", "border-brand-dark", "bg-gradient-to-br", "from-brand", "to-brand-dark", "px-2", "py-3.5", "text-xs", "font-semibold", "text-white", "shadow-lg", "shadow-brand/30", "transition"];
+    const TOGGLE_INACTIVE = ["rounded-xl", "border-2", "border-slate-200", "bg-white", "px-2", "py-3.5", "text-xs", "font-semibold", "text-slate-700", "transition", "hover:border-brand"];
+
+    function setToggleButtons(activo) {
+      document.getElementById("toggleAsignacion").className = (activo === "asignacion" ? TOGGLE_ACTIVE : TOGGLE_INACTIVE).join(" ");
+      document.getElementById("toggleReporte").className = (activo === "reporte" ? TOGGLE_ACTIVE : TOGGLE_INACTIVE).join(" ");
+      document.getElementById("toggleMantenimiento").className = (activo === "mantenimiento" ? TOGGLE_ACTIVE : TOGGLE_INACTIVE).join(" ");
+    }
 
     async function cargarDatosDepartamento() {
         const respuesta = await fetch(`/api/departments/${DEPARTMENT_SLUG}`);
@@ -215,6 +241,7 @@
 
         TICKET_TYPE_REPORTE = (datos.ticket_types || []).find(t => t.name === "Reporte de falla") || null;
         TICKET_TYPE_ASIGNACION = (datos.ticket_types || []).find(t => t.name === "Solicitud de vehículo") || null;
+        TICKET_TYPE_MANTENIMIENTO = (datos.ticket_types || []).find(t => t.name === "Ticket de Mantenimiento") || null;
     }
 
     function getPlacaFromURL() {
@@ -241,6 +268,8 @@
     function mostrarSeccionFormulario(tipo) {
         document.getElementById("formAsignacion").classList.toggle("hidden", tipo !== "asignacion");
         document.getElementById("formReporte").classList.toggle("hidden", tipo !== "reporte");
+        document.getElementById("formMantenimiento").classList.toggle("hidden", tipo !== "mantenimiento");
+        setToggleButtons(tipo);
         actualizarCampoNomina(tipo);
     }
 
@@ -252,10 +281,11 @@
         label.textContent = esObligatoria ? "🪪 Número de nómina" : "🪪 Número de nómina (opcional)";
     }
 
-    // A diferencia del operador, un colaborador común nunca elige la unidad
-    // que se le asigna — solo puede reportar sobre un vehículo puntual (aquí
-    // o escaneando su QR). Por eso, en cuanto hay un vehículo de por medio,
-    // el único tipo de ticket posible es "reporte".
+    // A diferencia del colaborador común, el operador siempre elige o escanea
+    // su propia unidad — para las 3 acciones (asignación, reporte, refacción)
+    // hay un vehículo de por medio, así que aquí siempre se muestra el
+    // selector de tipo (toggleGroup) para poder cambiar de acción sin volver
+    // a elegir el vehículo.
     function mostrarVehiculo(vehicle) {
         vehicleData = vehicle;
         document.getElementById("vehiclePlaca").textContent = vehicle.placa;
@@ -267,28 +297,9 @@
 
         history.replaceState(null, "", "?placa=" + encodeURIComponent(vehicle.placa));
 
-        tipoActual = "reporte";
-        modoFlujo = "universalReporte";
-        const tituloFormulario = document.getElementById("tituloFormulario");
-        tituloFormulario.textContent = TITULOS_FORMULARIO.reporte;
-        tituloFormulario.classList.remove("hidden");
-        mostrarSeccionFormulario("reporte");
-
-        document.getElementById("intentScreen").classList.add("hidden");
-        document.getElementById("selectorScreen").classList.add("hidden");
-        document.getElementById("mainContent").classList.remove("hidden");
-    }
-
-    function mostrarSolicitudGenerica() {
-        vehicleData = null;
-        document.getElementById("vehicleInfoPanel").classList.add("hidden");
-
-        const tituloFormulario = document.getElementById("tituloFormulario");
-        tituloFormulario.textContent = "🚗 Pedir un vehículo";
-        tituloFormulario.classList.remove("hidden");
-        mostrarSeccionFormulario("asignacion");
-
-        history.replaceState(null, "", window.location.pathname);
+        document.getElementById("tituloFormulario").classList.add("hidden");
+        document.getElementById("toggleGroup").classList.remove("hidden");
+        mostrarSeccionFormulario(tipoActual);
 
         document.getElementById("intentScreen").classList.add("hidden");
         document.getElementById("selectorScreen").classList.add("hidden");
@@ -297,15 +308,9 @@
 
     function elegirIntento(tipo) {
         tipoActual = tipo;
-        if (tipo === "reporte") {
-            modoFlujo = "universalReporte";
-            document.getElementById("selectorSubtitle").textContent = SUBTITULOS_SELECTOR.reporte;
-            document.getElementById("intentScreen").classList.add("hidden");
-            document.getElementById("selectorScreen").classList.remove("hidden");
-        } else {
-            modoFlujo = "universalSolicitud";
-            mostrarSolicitudGenerica();
-        }
+        document.getElementById("selectorSubtitle").textContent = SUBTITULOS_SELECTOR[tipo];
+        document.getElementById("intentScreen").classList.add("hidden");
+        document.getElementById("selectorScreen").classList.remove("hidden");
     }
 
     function volverAIntent() {
@@ -375,13 +380,17 @@
     function cambiarVehiculo() {
         detenerEscaneo();
         vehicleData = null;
-        modoFlujo = "universal";
         history.replaceState(null, "", window.location.pathname);
 
         document.getElementById("mainContent").classList.add("hidden");
         document.getElementById("selectorScreen").classList.add("hidden");
         document.getElementById("successDiv").classList.add("hidden");
         document.getElementById("intentScreen").classList.remove("hidden");
+    }
+
+    function toggleType(type) {
+        tipoActual = type;
+        mostrarSeccionFormulario(type);
     }
 
     // Achica la foto en el navegador antes de mandarla — sube más rápido y
@@ -437,15 +446,22 @@
         document.getElementById("mainContent").classList.toggle("hidden", show);
     }
 
-    function showSuccessScreen(folio) {
+    function showSuccessScreen(folio, estado) {
         document.getElementById("mainContent").classList.add("hidden");
         document.getElementById("loadingDiv").classList.add("hidden");
         document.getElementById("successDiv").classList.remove("hidden");
         document.getElementById("folioDisplay").textContent = folio;
 
+        // Si el vehículo elegido resultó Inactivo, el backend no autoasigna
+        // (queda "Abierto" para que flota lo revise) — el mensaje debe
+        // reflejar eso en vez de decir "ya puedes tomarla".
+        const asignadaDeInmediato = tipoActual === "asignacion" && estado === "Asignado";
         const mensajes = {
-            asignacion: { titulo: "¡Solicitud Registrada!", texto: "Tu solicitud de vehículo quedó registrada. El equipo de flota la revisará y te asignará una unidad." },
-            reporte: { titulo: "¡Ticket Registrado!", texto: "Tu reporte ha sido registrado exitosamente en el sistema." }
+            asignacion: asignadaDeInmediato
+                ? { titulo: "¡Unidad Asignada!", texto: "La unidad quedó asignada a tu nombre. Ya puedes tomarla — buen viaje." }
+                : { titulo: "¡Solicitud Registrada!", texto: "La unidad que elegiste no está disponible para autoasignación — el equipo de flota revisará tu solicitud y te avisará." },
+            reporte: { titulo: "¡Ticket Registrado!", texto: "Tu reporte ha sido registrado exitosamente en el sistema." },
+            mantenimiento: { titulo: "¡Solicitud Registrada!", texto: "Tu solicitud de refacción quedó registrada. El equipo de flota la revisará y te avisará cuando esté lista." }
         };
         const mensaje = mensajes[tipoActual] || mensajes.reporte;
         document.getElementById("successTitulo").textContent = mensaje.titulo;
@@ -453,15 +469,18 @@
         document.getElementById("successLicenciaNote").classList.toggle("hidden", tipoActual !== "asignacion");
     }
 
+    // El operador siempre trae un vehículo de por medio (a diferencia del
+    // colaborador común, que en "Pedir un vehículo" nunca elige unidad) — por
+    // eso aquí entity_id siempre va con la unidad seleccionada, incluida la
+    // asignación: eso es justo lo que hace que el backend la autorice de
+    // inmediato (ver public.py) en vez de dejarla pendiente de revisión.
     async function submitForm() {
-        const esGenerico = modoFlujo === "universalSolicitud";
-
-        if (!esGenerico && !vehicleData && tipoActual !== "asignacion") {
+        if (!vehicleData) {
             showError("Error: Vehículo no cargado");
             return;
         }
 
-        const ticketType = { asignacion: TICKET_TYPE_ASIGNACION, reporte: TICKET_TYPE_REPORTE }[tipoActual];
+        const ticketType = { asignacion: TICKET_TYPE_ASIGNACION, reporte: TICKET_TYPE_REPORTE, mantenimiento: TICKET_TYPE_MANTENIMIENTO }[tipoActual];
         if (!ticketType) {
             showError("El sistema no tiene configurado este tipo de ticket todavía.");
             return;
@@ -494,6 +513,12 @@
             const proposito = document.getElementById("proposito").value.trim();
             if (!proposito) { showError("Por favor completa todos los campos"); return; }
             campos.proposito = proposito;
+        } else if (tipoActual === "mantenimiento") {
+            const pieza = document.getElementById("piezaRefaccion").value.trim();
+            if (!pieza) { showError("Por favor indica qué pieza o refacción necesitas"); return; }
+            campos.pieza_refaccion = pieza;
+            const observaciones = document.getElementById("observacionesMantenimiento").value.trim();
+            if (observaciones) campos.observaciones = observaciones;
         } else {
             const desc = document.getElementById("descripcion").value.trim();
             if (!desc) { showError("Por favor describe qué pasó"); return; }
@@ -502,7 +527,7 @@
 
         const payload = {
             ticket_type_id: ticketType.id,
-            entity_id: (!esGenerico && vehicleData) ? vehicleData.id : null,
+            entity_id: vehicleData.id,
             solicitante_nombre: nombreSolicitante,
             solicitante_email: correoSolicitante,
             campos
@@ -521,7 +546,7 @@
             const data = await response.json();
             showLoading(false);
             if (response.ok) {
-                showSuccessScreen(data.folio);
+                showSuccessScreen(data.folio, data.estado);
             } else {
                 showError("Error: " + (data.detail || "No se pudo registrar"));
             }
@@ -547,6 +572,7 @@
         if (placa) {
             const vehicle = buscarVehiculoPorPlaca(placa);
             if (vehicle) {
+                tipoActual = "asignacion";
                 mostrarVehiculo(vehicle);
             } else {
                 showError("Vehículo no encontrado: " + placa);

@@ -18,7 +18,7 @@ from flask import Blueprint, Response, jsonify, redirect, request, session
 from werkzeug.security import check_password_hash
 
 from app import google_oauth
-from app.demo_data import DEMO_ADMIN_PASSCODES, DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_SERVICIOS, DEMO_TICKET_EVENTS, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_REPORTE
+from app.demo_data import DEMO_ADMIN_PASSCODES, DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_SERVICIOS, DEMO_TICKET_EVENTS, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_MANTENIMIENTO, DEMO_TYPE_REPORTE
 from app.extensions import supabase
 from app.mailer import send_observation_email, send_status_update_email, send_vehicle_assigned_email
 from app.photos import download_photo
@@ -147,6 +147,13 @@ def admin_classify_ticket(ticket_id: str):
     return jsonify({"ticket": updated.data[0]})
 
 
+DEMO_ESTADOS_BY_TYPE = {
+    DEMO_TYPE_REPORTE["id"]: set(DEMO_TYPE_REPORTE["estados"]),
+    DEMO_TYPE_ASIGNACION["id"]: set(DEMO_TYPE_ASIGNACION["estados"]),
+    DEMO_TYPE_MANTENIMIENTO["id"]: set(DEMO_TYPE_MANTENIMIENTO["estados"]),
+}
+
+
 @admin_bp.patch("/api/admin/tickets/<ticket_id>/status")
 @require_admin
 def admin_update_status(ticket_id: str):
@@ -161,14 +168,21 @@ def admin_update_status(ticket_id: str):
         ticket = next((item for item in DEMO_TICKETS if item["id"] == ticket_id and item["department_id"] == department_id), None)
         if not ticket:
             return error("Ticket no encontrado", 404)
+        estados_validos = DEMO_ESTADOS_BY_TYPE.get(ticket["ticket_type_id"], set())
+        if estado not in estados_validos:
+            return error(f"estado inválido para este tipo de ticket (válidos: {', '.join(sorted(estados_validos))})", 400)
         previous = ticket["estado"]
         ticket["estado"] = estado
         send_status_update_email(DEMO_DEPARTMENT, ticket, previous)
         return jsonify({"ticket": ticket, "event": {"accion": "cambio_estado", "estado_anterior": previous, "estado_nuevo": estado, "comentario": comentario}})
 
-    current = supabase.table("tickets").select("estado, department_id").eq("id", ticket_id).single().execute()
+    current = supabase.table("tickets").select("estado, department_id, ticket_type_id").eq("id", ticket_id).single().execute()
     if not current.data or current.data["department_id"] != department_id:
         return error("Ticket no encontrado", 404)
+    ticket_type = supabase.table("ticket_types").select("estados").eq("id", current.data["ticket_type_id"]).single().execute()
+    estados_validos = set((ticket_type.data or {}).get("estados") or [])
+    if estado not in estados_validos:
+        return error(f"estado inválido para este tipo de ticket (válidos: {', '.join(sorted(estados_validos))})", 400)
     updated = supabase.table("tickets").update({"estado": estado, "resolved_at": now() if estado in {"Resuelto", "Cerrado", "Asignado", "Negado"} else None}).eq("id", ticket_id).execute()
     supabase.table("ticket_events").insert({"ticket_id": ticket_id, "accion": "cambio_estado", "estado_anterior": current.data["estado"], "estado_nuevo": estado, "comentario": comentario}).execute()
     dept = supabase.table("departments").select("name, google_refresh_token").eq("id", department_id).single().execute()
