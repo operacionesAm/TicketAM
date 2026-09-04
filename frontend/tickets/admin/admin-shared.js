@@ -27,13 +27,26 @@ function esc(value) {
 // loginPath: por defecto "/admin" (Flota). Otros sistemas de tickets (p.ej.
 // Talento AM en /talento/admin) pasan su propia ruta de login — ahí mismo
 // vive el panel, igual que "/admin" ya es tanto login como base de Flota.
-async function requireSession(loginPath = "/admin") {
+// expectedSlug (opcional): todos los sistemas comparten la misma cookie de
+// sesión de Flask (un solo dominio, una sola sesión "activa" a la vez) —
+// sin esto, si quedó una sesión de OTRO departamento activa en este
+// navegador (p.ej. no cerraste sesión de Flota antes de entrar a Talento
+// AM), esta página cargaría con los tickets/tipos del departamento
+// equivocado. Si se pasa, se verifica contra department.slug y, si no
+// coincide, se cierra esa sesión ajena y se manda a loginPath en vez de
+// dejar pasar datos de otro sistema.
+async function requireSession(loginPath = "/admin", expectedSlug = null) {
   const response = await fetch("/api/admin/me");
   if (!response.ok) {
     location.href = loginPath;
     return null;
   }
   const data = await response.json();
+  if (expectedSlug && data.department?.slug !== expectedSlug) {
+    await fetch("/api/admin/logout", { method: "POST" });
+    location.href = loginPath;
+    return null;
+  }
   return data.department;
 }
 

@@ -87,10 +87,20 @@
     if (e.key === "Enter") login();
   });
 
-  // Si ya hay sesión activa (recarga de página), entra directo al dashboard.
+  // Si ya hay sesión activa de Talento AM (recarga de página), entra
+  // directo al dashboard. Si la sesión activa es de OTRO sistema de
+  // tickets (p.ej. no cerraste sesión de Flota antes de entrar aquí — la
+  // cookie de sesión es la misma para todos), se cierra en vez de dejarte
+  // pasar con los tickets/tipos del departamento equivocado.
   (async function checkSession() {
     const response = await fetch("/api/admin/me");
-    if (response.ok) location.href = "/talento/admin/dashboard";
+    if (!response.ok) return;
+    const data = await response.json();
+    if (data.department?.slug === "talento-am") {
+      location.href = "/talento/admin/dashboard";
+    } else {
+      await fetch("/api/admin/logout", { method: "POST" });
+    }
   })();
 </script>
 </body>

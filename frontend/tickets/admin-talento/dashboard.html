@@ -290,7 +290,7 @@
   }
 
   (async function init() {
-    const dept = await requireSession(BASE_PATH);
+    const dept = await requireSession(BASE_PATH, "talento-am");
     if (!dept) return;
     renderNav("dashboard", dept, BASE_PATH, "from-rose-600 to-rose-700");
 

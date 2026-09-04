@@ -62,7 +62,7 @@
   let currentTickets = [];
 
   async function init() {
-    const dept = await requireSession();
+    const dept = await requireSession("/admin", "flota");
     if (!dept) return;
     renderNav("reportes", dept);
 
