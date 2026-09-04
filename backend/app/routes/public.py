@@ -18,11 +18,18 @@ from app.demo_data import (
     DEMO_TYPE_MANTENIMIENTO,
     DEMO_TYPE_REPORTE,
 )
+from app.attachments import AdjuntoInvalido, upload_attachment
 from app.extensions import supabase
 from app.mailer import send_ticket_notification, send_vehicle_assigned_email, send_vehicle_request_received_email
 from app.photos import upload_photo
 
 public_bp = Blueprint("public", __name__)
+
+# Departamentos cuyo folio no debe usar el default de la tabla
+# ('TKT-' + hex al azar) sino un prefijo propio — Flota y cualquier
+# departamento futuro que no esté aquí siguen con el default de Postgres
+# tal cual, sin tocar su comportamiento.
+FOLIO_PREFIX_BY_SLUG = {"talento-am": "TKT-CH-"}
 
 
 def now() -> str:
@@ -73,6 +80,8 @@ def create_ticket(slug: str):
     campos = payload.get("campos") or {}
     entity_id = payload.get("entity_id") or None
     foto_base64 = payload.get("foto_base64") or None
+    adjunto_base64 = payload.get("adjunto_base64") or None
+    adjunto_nombre = payload.get("adjunto_nombre") or "archivo"
 
     if not supabase:
         if slug != "flota":
@@ -141,6 +150,14 @@ def create_ticket(slug: str):
         except Exception as exc:
             print(f"[photos] No se pudo subir la foto del reporte: {exc}")
 
+    if adjunto_base64:
+        try:
+            campos["adjunto_path"] = upload_attachment(supabase, department_id, adjunto_nombre, adjunto_base64)
+        except AdjuntoInvalido as exc:
+            return error(str(exc), 400)
+        except Exception as exc:
+            print(f"[attachments] No se pudo subir el adjunto: {exc}")
+
     # Una "Solicitud de vehículo" que ya trae entity_id vino de la página del
     # operador (frontend/tickets/operador/, la única que deja elegir o
     # escanear la unidad para "Pedir un vehículo") — se autoasigna sin pasar
@@ -159,6 +176,9 @@ def create_ticket(slug: str):
         "department_id": department_id,
         "estado": estado_inicial,
     }
+    folio_prefix = FOLIO_PREFIX_BY_SLUG.get(slug)
+    if folio_prefix:
+        record["folio"] = f"{folio_prefix}{uuid4().hex[:5].upper()}"
     if estado_inicial == "Asignado":
         record["resolved_at"] = now()
     result = supabase.table("tickets").insert(record).execute()

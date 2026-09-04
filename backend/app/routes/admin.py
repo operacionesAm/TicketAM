@@ -18,6 +18,7 @@ from flask import Blueprint, Response, jsonify, redirect, request, session
 from werkzeug.security import check_password_hash
 
 from app import google_oauth
+from app.attachments import MIME_BY_EXT, download_attachment
 from app.demo_data import DEMO_ADMIN_PASSCODES, DEMO_DEPARTMENT, DEMO_ENTITIES, DEMO_SERVICIOS, DEMO_TICKET_EVENTS, DEMO_TICKETS, DEMO_TYPE_ASIGNACION, DEMO_TYPE_MANTENIMIENTO, DEMO_TYPE_REPORTE
 from app.extensions import supabase
 from app.mailer import send_observation_email, send_status_update_email, send_vehicle_assigned_email
@@ -147,6 +148,15 @@ def admin_classify_ticket(ticket_id: str):
     return jsonify({"ticket": updated.data[0]})
 
 
+# Nombres de estado "terminal" (marcan resolved_at) de todos los sistemas de
+# tickets que existen hoy — los 4 de Flota más los de Talento AM (Capital
+# Humano). Un departamento nuevo con nombres de estado distintos a estos
+# tendría que sumar los suyos aquí para que resolved_at se llene igual.
+ESTADOS_FINALES = {
+    "Resuelto", "Cerrado", "Asignado", "Negado",  # Flota
+    "Completado", "Rechazado", "Cancelado", "Contratado", "Entregado",  # Talento AM
+}
+
 DEMO_ESTADOS_BY_TYPE = {
     DEMO_TYPE_REPORTE["id"]: set(DEMO_TYPE_REPORTE["estados"]),
     DEMO_TYPE_ASIGNACION["id"]: set(DEMO_TYPE_ASIGNACION["estados"]),
@@ -183,7 +193,7 @@ def admin_update_status(ticket_id: str):
     estados_validos = set((ticket_type.data or {}).get("estados") or [])
     if estado not in estados_validos:
         return error(f"estado inválido para este tipo de ticket (válidos: {', '.join(sorted(estados_validos))})", 400)
-    updated = supabase.table("tickets").update({"estado": estado, "resolved_at": now() if estado in {"Resuelto", "Cerrado", "Asignado", "Negado"} else None}).eq("id", ticket_id).execute()
+    updated = supabase.table("tickets").update({"estado": estado, "resolved_at": now() if estado in ESTADOS_FINALES else None}).eq("id", ticket_id).execute()
     supabase.table("ticket_events").insert({"ticket_id": ticket_id, "accion": "cambio_estado", "estado_anterior": current.data["estado"], "estado_nuevo": estado, "comentario": comentario}).execute()
     dept = supabase.table("departments").select("name, google_refresh_token").eq("id", department_id).single().execute()
     send_status_update_email(dept.data or {}, updated.data[0], current.data["estado"])
@@ -332,6 +342,30 @@ def admin_ticket_foto(ticket_id: str):
     except Exception:
         return error("No se pudo cargar la foto", 404)
     return Response(image_bytes, mimetype="image/jpeg")
+
+
+@admin_bp.get("/api/admin/tickets/<ticket_id>/adjunto")
+@require_admin
+def admin_ticket_adjunto(ticket_id: str):
+    department_id = session["department_id"]
+
+    if not supabase:
+        return error("Sin adjunto (modo demo)", 404)
+
+    current = supabase.table("tickets").select("campos, department_id").eq("id", ticket_id).single().execute()
+    if not current.data or current.data["department_id"] != department_id:
+        return error("Ticket no encontrado", 404)
+    adjunto_path = (current.data.get("campos") or {}).get("adjunto_path")
+    if not adjunto_path:
+        return error("Este ticket no tiene adjunto", 404)
+
+    try:
+        file_bytes = download_attachment(supabase, adjunto_path)
+    except Exception:
+        return error("No se pudo cargar el adjunto", 404)
+    extension = adjunto_path.rsplit(".", 1)[-1].lower()
+    mimetype = MIME_BY_EXT.get(extension, "application/octet-stream")
+    return Response(file_bytes, mimetype=mimetype, headers={"Content-Disposition": f'inline; filename="adjunto.{extension}"'})
 
 
 @admin_bp.get("/api/admin/entities")
@@ -573,6 +607,15 @@ def admin_google_connect():
         return error("La conexión con Google no está configurada en el servidor (faltan GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI).", 400)
     state = secrets.token_urlsafe(24)
     session["google_oauth_state"] = state
+    # A dónde regresar tras el consentimiento — cada sistema de tickets tiene
+    # su propia pantalla de Configuración (Flota: /admin/configuracion,
+    # Talento AM: /talento/admin/configuracion, etc.). Solo se acepta una
+    # ruta propia (empieza con "/", nunca "//") para no abrir un redirect a
+    # un sitio externo.
+    return_to = request.args.get("return_to") or "/admin/configuracion"
+    if not return_to.startswith("/") or return_to.startswith("//"):
+        return_to = "/admin/configuracion"
+    session["google_oauth_return_to"] = return_to
     return redirect(google_oauth.build_auth_url(state))
 
 
@@ -584,23 +627,25 @@ def admin_google_callback():
     if not session.get("department_id"):
         return redirect("/admin")
 
+    return_to = session.pop("google_oauth_return_to", "/admin/configuracion")
+
     state = request.args.get("state")
     if not state or state != session.get("google_oauth_state"):
-        return redirect("/admin/configuracion?google=error")
+        return redirect(f"{return_to}?google=error")
     session.pop("google_oauth_state", None)
 
     code = request.args.get("code")
     if not code:
-        return redirect("/admin/configuracion?google=error")
+        return redirect(f"{return_to}?google=error")
 
     try:
         result = google_oauth.exchange_code(code)
     except Exception:
-        return redirect("/admin/configuracion?google=error")
+        return redirect(f"{return_to}?google=error")
 
     if not result.get("refresh_token"):
         # Ya estaba conectado y Google no reenvió refresh_token; nada que guardar.
-        return redirect("/admin/configuracion?google=error")
+        return redirect(f"{return_to}?google=error")
 
     department_id = session["department_id"]
     if not supabase:
@@ -612,7 +657,7 @@ def admin_google_callback():
             "google_connected_email": result.get("email"),
         }).eq("id", department_id).execute()
 
-    return redirect("/admin/configuracion?google=connected")
+    return redirect(f"{return_to}?google=connected")
 
 
 @admin_bp.post("/api/admin/google/disconnect")

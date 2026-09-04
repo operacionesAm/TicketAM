@@ -49,7 +49,12 @@ DEFAULT_TICKET_TYPES = [
     },
 ]
 
-ESTADOS_FINALES = {"Resuelto", "Cerrado", "Asignado", "Negado"}
+# Mismo criterio que ESTADOS_FINALES en app/routes/admin.py — se mantiene
+# duplicado (en vez de importarlo) porque este módulo no depende de admin.py.
+ESTADOS_FINALES = {
+    "Resuelto", "Cerrado", "Asignado", "Negado",  # Flota
+    "Completado", "Rechazado", "Cancelado", "Contratado", "Entregado",  # Talento AM
+}
 
 
 def error(message: str, status: int):
@@ -184,6 +189,62 @@ def global_reset_passcode(department_id: str):
     if not result.data:
         return error("Departamento no encontrado", 404)
     return jsonify({"ok": True})
+
+
+
+# Los 2 buckets que usa hoy la app (ver app/photos.py y app/attachments.py).
+# Un departamento nuevo con su propio bucket tendría que sumarse aquí.
+STORAGE_BUCKETS = ["reportes-fotos", "ch-adjuntos"]
+# Límite del plan gratis de Supabase (Storage) — con esto se calcula el %
+# usado; si el proyecto se mueve a Pro, ver README para actualizarlo.
+STORAGE_FREE_LIMIT_BYTES = 1024 * 1024 * 1024
+
+
+def _bucket_usage(bucket: str, prefix: str = "") -> tuple[int, int]:
+    """Suma bytes/archivos de un bucket completo. Los archivos viven como
+    "{department_id}/{archivo}" (ver upload_photo/upload_attachment), así
+    que list() en la raíz solo trae "carpetas" (una por departamento) sin
+    tamaño — hay que bajar un nivel para cada una."""
+    total_bytes = 0
+    total_files = 0
+    try:
+        entries = supabase.storage.from_(bucket).list(prefix, {"limit": 1000}) or []
+    except Exception:
+        return 0, 0
+    for entry in entries:
+        metadata = entry.get("metadata") or {}
+        if metadata.get("size") is not None:
+            total_bytes += metadata["size"]
+            total_files += 1
+        elif entry.get("id") is None:
+            sub_prefix = f"{prefix}/{entry['name']}" if prefix else entry["name"]
+            sub_bytes, sub_files = _bucket_usage(bucket, sub_prefix)
+            total_bytes += sub_bytes
+            total_files += sub_files
+    return total_bytes, total_files
+
+
+@global_admin_bp.get("/api/global/storage-usage")
+@require_global_admin
+def global_storage_usage():
+    """Uso agregado de Supabase Storage (fotos de Flota + adjuntos de
+    Talento AM) contra el 1 GB del plan gratis — para verlo venir antes de
+    que se llene, en vez de enterarse cuando una subida empieza a fallar."""
+    buckets = []
+    total_bytes = 0
+    total_files = 0
+    for bucket in STORAGE_BUCKETS:
+        b_bytes, b_files = _bucket_usage(bucket)
+        buckets.append({"bucket": bucket, "bytes": b_bytes, "files": b_files})
+        total_bytes += b_bytes
+        total_files += b_files
+
+    return jsonify({
+        "total_bytes": total_bytes,
+        "total_files": total_files,
+        "limit_bytes": STORAGE_FREE_LIMIT_BYTES,
+        "buckets": buckets,
+    })
 
 
 @global_admin_bp.get("/api/global/departments/<department_id>/detail")

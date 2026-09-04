@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solicitudes | Talento AM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT: '#2a5298', dark: '#1e3c72' },
+          accent: '#27ae60'
+        }
+      }
+    }
+  }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="min-h-screen bg-rose-50 font-sans text-slate-800">
+
+  <div id="adminNav"></div>
+
+  <div class="mx-auto max-w-5xl px-5 py-6 pb-16">
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap gap-2" id="typeTabsWrap"></div>
+      <div class="flex flex-wrap gap-2">
+        <button id="viewBtnKanban" onclick="switchView('kanban')">🗂️ Kanban</button>
+        <button id="viewBtnLista" onclick="switchView('lista')">📃 Lista</button>
+        <button id="viewBtnArchivo" onclick="switchView('archivo')">🗄️ Archivo</button>
+        <button class="rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:border-brand hover:text-brand" onclick="exportTickets()">⬇️ Descargar XLSX</button>
+      </div>
+    </div>
+
+    <div id="kanbanBoard" class="flex snap-x snap-mandatory items-start gap-4 overflow-x-auto pb-4 sm:snap-none"></div>
+
+    <div id="listView" class="hidden">
+      <div id="statusFilterBar" class="mb-4 flex flex-wrap gap-2"></div>
+      <div id="ticketList" class="space-y-2.5"></div>
+    </div>
+
+    <div id="archiveView" class="hidden">
+      <p class="mb-4 text-sm text-slate-500">Solicitudes en un estado final desde hace más de 5 días — se mueven aquí para mantener el panel enfocado en lo activo, pero quedan disponibles como historial.</p>
+      <div id="archiveList" class="space-y-2.5"></div>
+    </div>
+  </div>
+
+  <!-- MODAL DETALLE -->
+  <div id="detailModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 p-5">
+    <div class="my-8 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+      <div class="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <div id="detailFolio" class="font-mono text-sm font-bold text-slate-400"></div>
+          <h3 id="detailTipo" class="text-lg font-bold text-brand-dark"></h3>
+        </div>
+        <button class="text-2xl leading-none text-slate-400 hover:text-slate-600" onclick="closeDetail()">&times;</button>
+      </div>
+
+      <div id="detailConfidencial" class="mb-4 hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">🔒 Solicitud confidencial — trátala con discreción.</div>
+
+      <div id="detailInfo" class="mb-5 grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-2"></div>
+
+      <div id="detailAdjuntoWrap" class="mb-5 hidden">
+        <a id="detailAdjuntoLink" href="#" target="_blank" class="inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-200 px-3 py-2 text-sm font-semibold text-brand hover:border-brand">📎 Ver adjunto</a>
+      </div>
+
+      <div class="mb-5">
+        <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Responsable</label>
+        <div class="flex gap-2">
+          <input id="detailResponsable" type="text" placeholder="Nombre de quien atiende la solicitud" class="flex-1 rounded-lg border-2 border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand">
+          <button class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-dark" onclick="saveResponsable()">Guardar</button>
+        </div>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Observaciones</label>
+        <div id="detailObservaciones" class="mb-3 max-h-48 space-y-2 overflow-y-auto"></div>
+        <textarea id="detailObservacionText" rows="2" placeholder="Escribe una observación para esta solicitud…" class="w-full rounded-lg border-2 border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand"></textarea>
+        <div class="mt-2 flex items-center justify-between gap-3">
+          <label class="flex items-center gap-2 text-xs text-slate-500">
+            <input id="detailNotificar" type="checkbox" class="h-4 w-4">
+            Enviar por correo al solicitante
+          </label>
+          <button class="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700" onclick="submitObservacion()">Guardar observación</button>
+        </div>
+        <div id="detailObservacionError" class="mt-2 hidden text-xs font-semibold text-red-600"></div>
+      </div>
+    </div>
+  </div>
+
+<script src="/tickets/admin/admin-shared.js"></script>
+<script>
+  const BASE_PATH = "/talento/admin";
+
+  let ticketTypesByName = {};
+  let ticketTypesById = {};
+  let allTickets = [];
+  let currentTicketTypeName = null; // null = "Todos" (en Kanban, "sin tipo elegido" hasta el primer load)
+  let typeTabsInitialized = false;
+  let currentView = "kanban";
+  let listStatusFilter = "Todos";
+  let detailTicketId = null;
+
+  const TAB_ACTIVE = ["rounded-lg", "px-3.5", "py-2.5", "text-xs", "font-bold", "text-white", "bg-gradient-to-br", "from-brand", "to-brand-dark", "shadow-md", "shadow-brand/25"];
+  const TAB_INACTIVE = ["rounded-lg", "px-3.5", "py-2.5", "text-xs", "font-bold", "text-slate-500", "bg-white", "hover:text-brand"];
+  const VIEW_ACTIVE = ["rounded-lg", "px-4", "py-2.5", "text-sm", "font-bold", "text-white", "bg-gradient-to-br", "from-brand", "to-brand-dark", "shadow-md", "shadow-brand/25"];
+  const VIEW_INACTIVE = ["rounded-lg", "px-4", "py-2.5", "text-sm", "font-bold", "text-slate-500", "bg-white", "hover:text-brand"];
+  const FILTER_TAB_ACTIVE = ["rounded-full", "px-3.5", "py-1.5", "text-xs", "font-bold", "text-white", "bg-brand"];
+  const FILTER_TAB_INACTIVE = ["rounded-full", "px-3.5", "py-1.5", "text-xs", "font-bold", "text-slate-500", "bg-white", "hover:text-brand"];
+
+  // RN-09: estos 2 tipos son de nivel de confidencialidad alto — hoy no hay
+  // separación de acceso real (un solo PIN ve todo), solo se marcan con
+  // badge como aviso (ver plan de este sistema).
+  const TIPOS_CONFIDENCIALES = new Set(["Reporte de Incidencia", "Solicitud de Apoyo Ocupacional"]);
+
+  const ESTADOS_FINALES = new Set(["Completado", "Cerrado", "Rechazado", "Cancelado", "Contratado", "Entregado"]);
+  const DIAS_PARA_ARCHIVAR = 5;
+
+  const TIPO_ICONOS = {
+    "Solicitud Administrativa": "📄",
+    "Reporte de Incidencia": "⚠️",
+    "Solicitud de Apoyo Ocupacional": "🧑‍⚕️",
+    "Solicitud de Mobiliario y Espacios": "🪑",
+    "Solicitud de Reclutamiento": "💼",
+    "Solicitud de Capacitación": "🎓",
+  };
+
+  const SLA_HORAS_POR_TIPO = {
+    "Solicitud Administrativa": 48,
+    "Reporte de Incidencia": 48,
+    "Solicitud de Apoyo Ocupacional": 48,
+    "Solicitud de Mobiliario y Espacios": 120,
+    "Solicitud de Reclutamiento": 120,
+    "Solicitud de Capacitación": 120,
+  };
+
+  function slaHoras(ticket, typeName) {
+    if (typeName === "Solicitud Administrativa" && (ticket.campos || {}).urgencia === "Urgente") return 24;
+    return SLA_HORAS_POR_TIPO[typeName] || 48;
+  }
+
+  function isArchived(ticket) {
+    if (!ESTADOS_FINALES.has(ticket.estado) || !ticket.resolved_at) return false;
+    const dias = (Date.now() - new Date(ticket.resolved_at).getTime()) / 86400000;
+    return dias > DIAS_PARA_ARCHIVAR;
+  }
+
+  function tipoNombre(ticket) {
+    const type = ticketTypesById[ticket.ticket_type_id];
+    return type ? type.name : "—";
+  }
+
+  // 🟢 falta más de 1 día para vencer · 🟡 falta 1 día o menos · 🔴 vencido
+  // (o falta menos de 2h) — mismo semáforo del spec, con la lectura habitual
+  // de un semáforo (verde = tranquilo, no la de la sección 4 al pie de la
+  // letra, que quedaría invertida).
+  function slaBadgeHtml(ticket) {
+    if (ESTADOS_FINALES.has(ticket.estado)) return "";
+    const typeName = tipoNombre(ticket);
+    const horasLimite = slaHoras(ticket, typeName);
+    const horasTranscurridas = (Date.now() - new Date(ticket.created_at).getTime()) / 3600000;
+    const horasRestantes = horasLimite - horasTranscurridas;
+    if (horasRestantes <= 2) return `<span class="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">🔴 ${horasRestantes <= 0 ? "SLA vencido" : "vence pronto"}</span>`;
+    if (horasRestantes <= 24) return `<span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">🟡 vence en ${Math.round(horasRestantes)}h</span>`;
+    return `<span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">🟢 en tiempo</span>`;
+  }
+
+  function confidencialBadgeHtml(ticket) {
+    return TIPOS_CONFIDENCIALES.has(tipoNombre(ticket)) ? `<span class="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-white">🔒</span>` : "";
+  }
+
+  function adjuntoBadgeHtml(ticket) {
+    return (ticket.campos || {}).adjunto_path ? `<span class="text-xs" title="Tiene adjunto">📎</span>` : "";
+  }
+
+  function resumenTicket(ticket) {
+    const c = ticket.campos || {};
+    return c.descripcion || c.tipo_solicitud || c.nombre_curso || c.tipo_reporte || c.tipo_apoyo || "";
+  }
+
+  async function loadTickets() {
+    let ticketsRes;
+    try {
+      ticketsRes = await fetch("/api/admin/tickets");
+    } catch {
+      document.getElementById("kanbanBoard").innerHTML = '<div class="py-16 text-center text-red-500">No se pudo conectar con el servidor. Revisa tu conexión y recarga la página.</div>';
+      return;
+    }
+    if (ticketsRes.status === 401) { location.href = BASE_PATH; return; }
+    if (!ticketsRes.ok) {
+      document.getElementById("kanbanBoard").innerHTML = '<div class="py-16 text-center text-red-500">No se pudieron cargar las solicitudes. Recarga la página.</div>';
+      return;
+    }
+    const data = await ticketsRes.json();
+    ticketTypesByName = {};
+    ticketTypesById = {};
+    (data.ticket_types || []).forEach(t => { ticketTypesByName[t.name] = t; ticketTypesById[t.id] = t; });
+    allTickets = data.tickets || [];
+    if (currentTicketTypeName === null && !typeTabsInitialized && Object.keys(ticketTypesByName).length) {
+      currentTicketTypeName = Object.keys(ticketTypesByName)[0];
+    }
+    typeTabsInitialized = true;
+    renderTypeTabs();
+    render();
+  }
+
+  function renderTypeTabs() {
+    const wrap = document.getElementById("typeTabsWrap");
+    const types = Object.values(ticketTypesByName);
+    const tabs = [{ id: null, label: "📋 Todos" }, ...types.map(t => ({ id: t.name, label: `${TIPO_ICONOS[t.name] || ""} ${t.name}` }))];
+    wrap.innerHTML = tabs.map(tab => `
+      <button class="${(currentTicketTypeName === tab.id ? TAB_ACTIVE : TAB_INACTIVE).join(" ")}" onclick="switchTicketType(${tab.id ? `'${tab.id}'` : "null"})">${tab.label}</button>
+    `).join("");
+  }
+
+  function switchTicketType(name) {
+    currentTicketTypeName = name;
+    listStatusFilter = "Todos";
+    renderTypeTabs();
+    render();
+  }
+
+  function switchView(view) {
+    currentView = view;
+    document.getElementById("viewBtnKanban").className = (view === "kanban" ? VIEW_ACTIVE : VIEW_INACTIVE).join(" ");
+    document.getElementById("viewBtnLista").className = (view === "lista" ? VIEW_ACTIVE : VIEW_INACTIVE).join(" ");
+    document.getElementById("viewBtnArchivo").className = (view === "archivo" ? VIEW_ACTIVE : VIEW_INACTIVE).join(" ");
+    document.getElementById("kanbanBoard").classList.toggle("hidden", view !== "kanban");
+    document.getElementById("listView").classList.toggle("hidden", view !== "lista");
+    document.getElementById("archiveView").classList.toggle("hidden", view !== "archivo");
+    render();
+  }
+
+  function currentTicketTypeIds() {
+    if (!currentTicketTypeName) return Object.values(ticketTypesByName).map(t => t.id);
+    const type = ticketTypesByName[currentTicketTypeName];
+    return type ? [type.id] : [];
+  }
+
+  function estadosForTicket(ticket) {
+    const type = ticketTypesById[ticket.ticket_type_id];
+    return type ? type.estados : [];
+  }
+
+  function combinedEstados() {
+    return [...new Set(Object.values(ticketTypesByName).flatMap(t => t.estados))];
+  }
+
+  function render() {
+    if (currentView === "kanban") renderBoard();
+    else if (currentView === "lista") renderList();
+    else renderArchive();
+  }
+
+  function renderBoard() {
+    const board = document.getElementById("kanbanBoard");
+    if (!currentTicketTypeName) {
+      board.innerHTML = '<div class="py-16 text-center text-slate-400">El Kanban es por tipo de solicitud — elige un tipo arriba. "Todos" está disponible en Lista y Archivo.</div>';
+      return;
+    }
+    const type = ticketTypesByName[currentTicketTypeName];
+    if (!type) { board.innerHTML = '<div class="py-16 text-center text-slate-400">Este tipo no está configurado.</div>'; return; }
+    const filtered = allTickets.filter(t => t.ticket_type_id === type.id && !isArchived(t));
+    board.innerHTML = type.estados.map(estado => {
+      const cards = filtered.filter(t => t.estado === estado);
+      return `
+        <div class="kanban-column w-[82vw] max-w-xs shrink-0 snap-center rounded-2xl bg-black/10 p-3 sm:w-72" data-estado="${estado}">
+          <div class="mb-3 flex items-center justify-between px-1">
+            <h4 class="text-sm font-bold text-slate-600">${esc(estado)}</h4>
+            <span class="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-500">${cards.length}</span>
+          </div>
+          <div class="min-h-[60px] space-y-2.5">${cards.map(renderCard).join("")}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderCard(ticket) {
+    const resumen = resumenTicket(ticket);
+    return `
+      <div class="kanban-card cursor-grab rounded-xl bg-white p-3.5 shadow-sm active:cursor-grabbing" draggable="true" data-ticket-id="${ticket.id}">
+        <div class="flex items-start justify-between gap-2">
+          <div class="font-mono text-[11px] font-bold text-slate-400">${ticket.folio}</div>
+          ${confidencialBadgeHtml(ticket)}
+        </div>
+        <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+        <div class="mt-1 text-xs text-slate-500">${esc(resumen)}</div>
+        <div class="mt-1.5 flex flex-wrap items-center gap-1.5">${slaBadgeHtml(ticket)}${adjuntoBadgeHtml(ticket)}</div>
+        <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
+        <button class="mt-2.5 w-full rounded-md border border-slate-200 py-1 text-[11px] font-semibold text-brand hover:bg-slate-50" onclick="openDetail('${ticket.id}')">Ver detalle</button>
+      </div>
+    `;
+  }
+
+  async function moveTicket(ticketId, nuevoEstado) {
+    const ticket = allTickets.find(t => t.id === ticketId);
+    if (!ticket || ticket.estado === nuevoEstado) return;
+    const previo = ticket.estado;
+    ticket.estado = nuevoEstado;
+    render();
+    const response = await fetch(`/api/admin/tickets/${ticketId}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ estado: nuevoEstado, comentario: "" })
+    });
+    if (!response.ok) {
+      ticket.estado = previo;
+      render();
+      alert("No se pudo mover la solicitud.");
+      return;
+    }
+    const data = await response.json();
+    Object.assign(ticket, data.ticket);
+    render();
+    if (detailTicketId === ticketId) openDetail(ticketId);
+  }
+
+  function switchListStatusFilter(estado) {
+    listStatusFilter = estado;
+    renderList();
+  }
+
+  function renderList() {
+    const typeIds = currentTicketTypeIds();
+    const filterBar = document.getElementById("statusFilterBar");
+    const list = document.getElementById("ticketList");
+    if (!typeIds.length) {
+      filterBar.innerHTML = "";
+      list.innerHTML = '<div class="py-16 text-center text-slate-400">Sin tipos configurados.</div>';
+      return;
+    }
+    const filtered = allTickets.filter(t => typeIds.includes(t.ticket_type_id) && !isArchived(t));
+    const estadosDisponibles = currentTicketTypeName ? ticketTypesByName[currentTicketTypeName].estados : combinedEstados();
+    const filters = ["Todos", ...estadosDisponibles];
+    filterBar.innerHTML = filters.map(estado => {
+      const count = estado === "Todos" ? filtered.length : filtered.filter(t => t.estado === estado).length;
+      const active = listStatusFilter === estado;
+      return `<button class="${(active ? FILTER_TAB_ACTIVE : FILTER_TAB_INACTIVE).join(" ")}" onclick="switchListStatusFilter('${estado}')">${esc(estado)} (${count})</button>`;
+    }).join("");
+
+    const visible = (listStatusFilter === "Todos" ? filtered : filtered.filter(t => t.estado === listStatusFilter))
+      .slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    if (!visible.length) { list.innerHTML = '<div class="py-16 text-center text-slate-400">Sin solicitudes para este filtro.</div>'; return; }
+    list.innerHTML = visible.map(t => renderListRow(t, estadosForTicket(t))).join("");
+  }
+
+  function renderListRow(ticket, estados) {
+    const resumen = resumenTicket(ticket);
+    return `
+      <div class="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3.5 shadow-sm sm:flex-nowrap" data-ticket-id="${ticket.id}">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="font-mono text-[11px] font-bold text-slate-400">${ticket.folio}</span>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">${TIPO_ICONOS[tipoNombre(ticket)] || ""} ${esc(tipoNombre(ticket))}</span>
+            ${confidencialBadgeHtml(ticket)}
+          </div>
+          <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+          <div class="mt-1 truncate text-xs text-slate-500">${esc(resumen)}</div>
+          <div class="mt-1.5 flex flex-wrap items-center gap-1.5">${slaBadgeHtml(ticket)}${adjuntoBadgeHtml(ticket)}</div>
+          <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
+          <button class="mt-1.5 text-[11px] font-semibold text-brand underline" onclick="openDetail('${ticket.id}')">Ver detalle</button>
+        </div>
+        <div class="flex w-full shrink-0 flex-col gap-1.5 sm:w-56">
+          <select class="w-full rounded-full border-2 border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-brand-dark outline-none focus:border-brand" onchange="moveTicket('${ticket.id}', this.value)">
+            ${estados.map(estado => `<option value="${estado}" ${ticket.estado === estado ? "selected" : ""}>${esc(estado)}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderArchive() {
+    const typeIds = currentTicketTypeIds();
+    const list = document.getElementById("archiveList");
+    if (!typeIds.length) { list.innerHTML = '<div class="py-16 text-center text-slate-400">Sin tipos configurados.</div>'; return; }
+    const archived = allTickets.filter(t => typeIds.includes(t.ticket_type_id) && isArchived(t))
+      .slice().sort((a, b) => new Date(b.resolved_at) - new Date(a.resolved_at));
+    if (!archived.length) { list.innerHTML = '<div class="py-16 text-center text-slate-400">Sin solicitudes archivadas todavía.</div>'; return; }
+    list.innerHTML = archived.map(renderArchiveRow).join("");
+  }
+
+  function renderArchiveRow(ticket) {
+    const resumen = resumenTicket(ticket);
+    const diasArchivado = Math.floor((Date.now() - new Date(ticket.resolved_at).getTime()) / 86400000);
+    return `
+      <div class="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3.5 opacity-80 shadow-sm sm:flex-nowrap">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="font-mono text-[11px] font-bold text-slate-400">${ticket.folio}</span>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">${TIPO_ICONOS[tipoNombre(ticket)] || ""} ${esc(tipoNombre(ticket))}</span>
+            <span class="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">${esc(ticket.estado)}</span>
+          </div>
+          <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+          <div class="mt-1 truncate text-xs text-slate-500">${esc(resumen)}</div>
+          <div class="mt-1 text-[11px] text-slate-400">Resuelto el ${formatDate(ticket.resolved_at)} · archivado hace ${diasArchivado} días</div>
+        </div>
+        <button class="shrink-0 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-brand hover:bg-slate-50" onclick="openDetail('${ticket.id}')">Ver detalle</button>
+      </div>
+    `;
+  }
+
+  async function openDetail(ticketId) {
+    const ticket = allTickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+    detailTicketId = ticketId;
+    const type = ticketTypesById[ticket.ticket_type_id];
+    const campos = ticket.campos || {};
+
+    document.getElementById("detailFolio").textContent = ticket.folio;
+    document.getElementById("detailTipo").textContent = `${TIPO_ICONOS[tipoNombre(ticket)] || ""} ${tipoNombre(ticket)}`;
+    document.getElementById("detailConfidencial").classList.toggle("hidden", !TIPOS_CONFIDENCIALES.has(tipoNombre(ticket)));
+
+    // Los campos propios de este tipo se listan a partir de su
+    // campos_config (cada tipo trae los suyos) — así el detalle no depende
+    // de tener hardcodeados los 6 formularios distintos.
+    const camposInfo = (type ? type.campos_config : [])
+      .filter(f => f.key !== "adjunto_path" && campos[f.key])
+      .map(f => [f.label, campos[f.key]]);
+
+    const info = [
+      ["Fecha/hora", formatDate(ticket.created_at)],
+      ["Solicitante", ticket.solicitante_nombre],
+      ["Correo", ticket.solicitante_email],
+      ...camposInfo,
+      ["Estado", ticket.estado],
+      ["Fecha de resolución", ticket.resolved_at ? formatDate(ticket.resolved_at) : "—"],
+    ];
+    document.getElementById("detailInfo").innerHTML = info.map(([label, value]) => `
+      <div>
+        <div class="text-[11px] font-bold uppercase tracking-wide text-slate-400">${esc(label)}</div>
+        <div class="text-slate-700">${esc(value)}</div>
+      </div>
+    `).join("");
+
+    const adjuntoWrap = document.getElementById("detailAdjuntoWrap");
+    if (campos.adjunto_path) {
+      document.getElementById("detailAdjuntoLink").href = `/api/admin/tickets/${ticket.id}/adjunto`;
+      adjuntoWrap.classList.remove("hidden");
+    } else {
+      adjuntoWrap.classList.add("hidden");
+    }
+
+    document.getElementById("detailResponsable").value = ticket.responsable_nombre || "";
+    document.getElementById("detailObservacionText").value = "";
+    document.getElementById("detailNotificar").checked = false;
+    document.getElementById("detailObservacionError").classList.add("hidden");
+    document.getElementById("detailObservaciones").innerHTML = `<div class="text-xs text-slate-400">Cargando…</div>`;
+
+    document.getElementById("detailModal").classList.remove("hidden");
+    document.getElementById("detailModal").classList.add("flex");
+    loadObservaciones(ticketId);
+  }
+
+  function closeDetail() {
+    detailTicketId = null;
+    document.getElementById("detailModal").classList.add("hidden");
+    document.getElementById("detailModal").classList.remove("flex");
+  }
+
+  async function loadObservaciones(ticketId) {
+    const response = await fetch(`/api/admin/events?ticket_id=${ticketId}`);
+    const el = document.getElementById("detailObservaciones");
+    if (!response.ok) { el.innerHTML = `<div class="text-xs text-red-500">No se pudo cargar el historial.</div>`; return; }
+    const data = await response.json();
+    const observaciones = (data.events || []).filter(e => e.accion === "observacion");
+    if (!observaciones.length) { el.innerHTML = `<div class="text-xs text-slate-400">Sin observaciones todavía.</div>`; return; }
+    el.innerHTML = observaciones.map(e => `
+      <div class="rounded-lg bg-slate-50 p-2.5 text-xs">
+        <div class="text-slate-700">${esc(e.comentario)}</div>
+        <div class="mt-1 text-[10px] text-slate-400">${formatDate(e.created_at)}</div>
+      </div>
+    `).join("");
+  }
+
+  async function saveResponsable() {
+    if (!detailTicketId) return;
+    const responsable_nombre = document.getElementById("detailResponsable").value.trim();
+    const response = await fetch(`/api/admin/tickets/${detailTicketId}/responsable`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ responsable_nombre })
+    });
+    if (!response.ok) { alert("No se pudo guardar el responsable."); return; }
+    const ticket = allTickets.find(t => t.id === detailTicketId);
+    if (ticket) ticket.responsable_nombre = responsable_nombre || null;
+  }
+
+  async function submitObservacion() {
+    if (!detailTicketId) return;
+    const comentario = document.getElementById("detailObservacionText").value.trim();
+    const errorEl = document.getElementById("detailObservacionError");
+    errorEl.classList.add("hidden");
+    if (!comentario) { errorEl.textContent = "Escribe una observación."; errorEl.classList.remove("hidden"); return; }
+    const notificar_email = document.getElementById("detailNotificar").checked;
+
+    const response = await fetch(`/api/admin/tickets/${detailTicketId}/observaciones`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comentario, notificar_email })
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      errorEl.textContent = data.detail || "No se pudo guardar la observación.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    document.getElementById("detailObservacionText").value = "";
+    document.getElementById("detailNotificar").checked = false;
+    loadObservaciones(detailTicketId);
+  }
+
+  (function setupDragAndDrop() {
+    const board = document.getElementById("kanbanBoard");
+    board.addEventListener("dragstart", e => {
+      const card = e.target.closest(".kanban-card");
+      if (!card) return;
+      e.dataTransfer.setData("text/plain", card.dataset.ticketId);
+      e.dataTransfer.effectAllowed = "move";
+      card.classList.add("opacity-40");
+    });
+    board.addEventListener("dragend", e => {
+      const card = e.target.closest(".kanban-card");
+      if (card) card.classList.remove("opacity-40");
+    });
+    board.addEventListener("dragover", e => {
+      const column = e.target.closest(".kanban-column");
+      if (!column) return;
+      e.preventDefault();
+      column.classList.add("ring-2", "ring-brand");
+    });
+    board.addEventListener("dragleave", e => {
+      const column = e.target.closest(".kanban-column");
+      if (column) column.classList.remove("ring-2", "ring-brand");
+    });
+    board.addEventListener("drop", e => {
+      const column = e.target.closest(".kanban-column");
+      if (!column) return;
+      e.preventDefault();
+      column.classList.remove("ring-2", "ring-brand");
+      const ticketId = e.dataTransfer.getData("text/plain");
+      if (ticketId) moveTicket(ticketId, column.dataset.estado);
+    });
+  })();
+
+  function currentVisibleTickets() {
+    const typeIds = currentTicketTypeIds();
+    if (currentView === "archivo") return allTickets.filter(t => typeIds.includes(t.ticket_type_id) && isArchived(t));
+    if (currentView === "lista") {
+      const filtered = allTickets.filter(t => typeIds.includes(t.ticket_type_id) && !isArchived(t));
+      return listStatusFilter === "Todos" ? filtered : filtered.filter(t => t.estado === listStatusFilter);
+    }
+    const type = currentTicketTypeName ? ticketTypesByName[currentTicketTypeName] : null;
+    return type ? allTickets.filter(t => t.ticket_type_id === type.id && !isArchived(t)) : [];
+  }
+
+  function exportTickets() {
+    const rows = currentVisibleTickets().map(t => ({
+      folio: t.folio,
+      tipo: tipoNombre(t),
+      solicitante: t.solicitante_nombre,
+      correo: t.solicitante_email,
+      resumen: resumenTicket(t),
+      estado: t.estado,
+      responsable: t.responsable_nombre || "—",
+      fecha: t.created_at,
+      fecha_resolucion: t.resolved_at
+    }));
+    const nombreVista = currentView === "archivo" ? "archivo" : currentView === "lista" ? "lista" : "kanban";
+    openExportModal({
+      title: "Descargar Solicitudes",
+      columns: [
+        { key: "folio", label: "Folio" },
+        { key: "tipo", label: "Tipo" },
+        { key: "solicitante", label: "Solicitante" },
+        { key: "correo", label: "Correo" },
+        { key: "resumen", label: "Descripción / detalle" },
+        { key: "estado", label: "Estado" },
+        { key: "responsable", label: "Responsable" },
+        { key: "fecha", label: "Fecha", format: v => formatDate(v) },
+        { key: "fecha_resolucion", label: "Fecha de resolución", format: v => v ? formatDate(v) : "—" }
+      ],
+      rows,
+      filenameBase: `solicitudes-${nombreVista}`,
+      dateKey: "fecha"
+    });
+  }
+
+  (async function init() {
+    const dept = await requireSession(BASE_PATH);
+    if (!dept) return;
+    renderNav("tickets", dept, BASE_PATH, "from-rose-600 to-rose-700");
+    switchView("kanban");
+    loadTickets();
+  })();
+</script>
+</body>
+</html>

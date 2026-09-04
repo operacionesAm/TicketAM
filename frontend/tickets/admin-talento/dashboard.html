@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard | Talento AM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT: '#2a5298', dark: '#1e3c72' },
+          accent: '#27ae60'
+        }
+      }
+    }
+  }
+</script>
+</head>
+<body class="min-h-screen bg-rose-50 font-sans text-slate-800">
+
+  <div id="adminNav"></div>
+
+  <div class="mx-auto max-w-5xl px-5 py-8">
+    <h1 class="mb-1 text-xl font-bold text-brand-dark">Dashboard</h1>
+    <p class="mb-6 text-sm text-slate-500">Talento AM · Capital Humano — lo que necesita atención hoy.</p>
+
+    <!-- KPIs -->
+    <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiHoy" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Solicitudes hoy</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiAbiertas" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Abiertas</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiVencidas" class="text-2xl font-bold text-red-600">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Vencidas (SLA rojo)</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiCumplimiento" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Cumplimiento de SLA</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiPromedioResolucion" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Prom. días de resolución</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiMasAntigua" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Días de la más antigua sin resolver</div>
+      </div>
+    </div>
+
+    <!-- GESTION -->
+    <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiEspera" class="text-2xl font-bold text-amber-600">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">En espera de información</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiCancelacion" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Tasa de cancelación</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiRechazo" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Tasa de rechazo</div>
+      </div>
+      <div class="rounded-2xl bg-white p-4 shadow-sm">
+        <div id="kpiPrimeraRespuesta" class="text-2xl font-bold text-brand-dark">—</div>
+        <div class="mt-1 text-xs font-semibold text-slate-500">Prom. horas de 1ª respuesta</div>
+      </div>
+    </div>
+
+    <!-- TABLAS -->
+    <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Distribución y SLA por tipo</h2>
+        <table class="w-full text-left text-sm">
+          <thead>
+            <tr class="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+              <th class="py-2">Tipo</th>
+              <th class="py-2 text-right">Solicitudes</th>
+              <th class="py-2 text-right">% SLA cumplido</th>
+            </tr>
+          </thead>
+          <tbody id="typeDistributionBody"></tbody>
+        </table>
+      </div>
+      <div class="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Carga de trabajo por responsable</h2>
+        <table class="w-full text-left text-sm">
+          <thead>
+            <tr class="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+              <th class="py-2">Responsable</th>
+              <th class="py-2 text-right">Activas</th>
+            </tr>
+          </thead>
+          <tbody id="workloadBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="rounded-2xl bg-white p-5 shadow-sm">
+      <h2 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">Solicitudes por estado</h2>
+      <table class="w-full text-left text-sm">
+        <thead>
+          <tr class="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+            <th class="py-2">Estado</th>
+            <th class="py-2 text-right">Cantidad</th>
+          </tr>
+        </thead>
+        <tbody id="statusDistributionBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script src="/tickets/admin/admin-shared.js"></script>
+<script>
+  const BASE_PATH = "/talento/admin";
+
+  // Estados que cuentan como "terminados" en cualquiera de los 6 tipos de
+  // Talento AM (ver backend/app/routes/admin.py::ESTADOS_FINALES, mismo
+  // criterio — así el backend marca resolved_at exactamente en estos).
+  const ESTADOS_FINALES = new Set(["Completado", "Cerrado", "Rechazado", "Cancelado", "Contratado", "Entregado"]);
+  const ESTADOS_RECHAZO = new Set(["Rechazado"]);
+  const ESTADOS_CANCELACION = new Set(["Cancelado"]);
+  const ESTADO_ESPERA = "En espera de información";
+
+  // SLA en horas por tipo, tomado de la sección 1 del spec de Capital
+  // Humano (Administrativo/Incidencia/Apoyo: 48h — Mobiliario/Reclutamiento/
+  // Capacitación: 5 días de evaluación). "Solicitud Administrativa" baja a
+  // 24h si el campo urgencia viene "Urgente" (RN-07).
+  const SLA_HORAS_POR_TIPO = {
+    "Solicitud Administrativa": 48,
+    "Reporte de Incidencia": 48,
+    "Solicitud de Apoyo Ocupacional": 48,
+    "Solicitud de Mobiliario y Espacios": 120,
+    "Solicitud de Reclutamiento": 120,
+    "Solicitud de Capacitación": 120,
+  };
+
+  function slaHoras(ticket, typeName) {
+    if (typeName === "Solicitud Administrativa" && (ticket.campos || {}).urgencia === "Urgente") return 24;
+    return SLA_HORAS_POR_TIPO[typeName] || 48;
+  }
+
+  function horasTranscurridas(desde, hasta) {
+    return (hasta - desde) / (60 * 60 * 1000);
+  }
+
+  function diasEntre(desde, hasta) {
+    return Math.floor((hasta - desde) / (24 * 60 * 60 * 1000));
+  }
+
+  function renderKpis(tickets, ticketTypesById) {
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const hoyMs = hoy.getTime();
+    const ahora = Date.now();
+
+    const hoyCount = tickets.filter(t => new Date(t.created_at).getTime() >= hoyMs).length;
+    const abiertas = tickets.filter(t => !ESTADOS_FINALES.has(t.estado));
+
+    let vencidas = 0;
+    abiertas.forEach(t => {
+      const typeName = (ticketTypesById[t.ticket_type_id] || {}).name;
+      const horas = horasTranscurridas(new Date(t.created_at).getTime(), ahora);
+      if (horas > slaHoras(t, typeName)) vencidas++;
+    });
+
+    const terminadas = tickets.filter(t => t.resolved_at);
+    const cumplidas = terminadas.filter(t => {
+      const typeName = (ticketTypesById[t.ticket_type_id] || {}).name;
+      const horas = horasTranscurridas(new Date(t.created_at).getTime(), new Date(t.resolved_at).getTime());
+      return horas <= slaHoras(t, typeName);
+    });
+    const cumplimiento = terminadas.length ? Math.round((cumplidas.length / terminadas.length) * 100) : null;
+
+    const promedioDias = terminadas.length
+      ? Math.round(terminadas.reduce((sum, t) => sum + diasEntre(new Date(t.created_at), new Date(t.resolved_at)), 0) / terminadas.length * 10) / 10
+      : null;
+
+    const masAntigua = abiertas.length
+      ? Math.max(0, diasEntre(new Date(Math.min(...abiertas.map(t => new Date(t.created_at)))), ahora))
+      : null;
+
+    const enEspera = tickets.filter(t => t.estado === ESTADO_ESPERA).length;
+    const canceladas = tickets.filter(t => ESTADOS_CANCELACION.has(t.estado)).length;
+    const rechazadas = tickets.filter(t => ESTADOS_RECHAZO.has(t.estado)).length;
+    const tasaCancelacion = tickets.length ? Math.round((canceladas / tickets.length) * 1000) / 10 : 0;
+    const tasaRechazo = tickets.length ? Math.round((rechazadas / tickets.length) * 1000) / 10 : 0;
+
+    document.getElementById("kpiHoy").textContent = hoyCount;
+    document.getElementById("kpiAbiertas").textContent = abiertas.length;
+    document.getElementById("kpiVencidas").textContent = vencidas;
+    document.getElementById("kpiCumplimiento").textContent = cumplimiento === null ? "—" : `${cumplimiento}%`;
+    document.getElementById("kpiPromedioResolucion").textContent = promedioDias === null ? "—" : promedioDias;
+    document.getElementById("kpiMasAntigua").textContent = masAntigua === null ? "—" : masAntigua;
+    document.getElementById("kpiEspera").textContent = enEspera;
+    document.getElementById("kpiCancelacion").textContent = `${tasaCancelacion}%`;
+    document.getElementById("kpiRechazo").textContent = `${tasaRechazo}%`;
+  }
+
+  async function renderPrimeraRespuesta(tickets) {
+    if (!tickets.length) { document.getElementById("kpiPrimeraRespuesta").textContent = "—"; return; }
+    try {
+      const response = await fetch("/api/admin/events");
+      if (!response.ok) { document.getElementById("kpiPrimeraRespuesta").textContent = "—"; return; }
+      const data = await response.json();
+      const eventosPorTicket = {};
+      (data.events || []).forEach(e => {
+        if (e.accion === "creado") return;
+        if (!eventosPorTicket[e.ticket_id] || new Date(e.created_at) < new Date(eventosPorTicket[e.ticket_id])) {
+          eventosPorTicket[e.ticket_id] = e.created_at;
+        }
+      });
+      const ticketsById = {};
+      tickets.forEach(t => ticketsById[t.id] = t);
+      const horas = Object.entries(eventosPorTicket)
+        .filter(([ticketId]) => ticketsById[ticketId])
+        .map(([ticketId, fecha]) => horasTranscurridas(new Date(ticketsById[ticketId].created_at), new Date(fecha)));
+      document.getElementById("kpiPrimeraRespuesta").textContent = horas.length
+        ? Math.round(horas.reduce((a, b) => a + b, 0) / horas.length)
+        : "—";
+    } catch {
+      document.getElementById("kpiPrimeraRespuesta").textContent = "—";
+    }
+  }
+
+  function renderTypeDistribution(tickets, ticketTypesByName) {
+    const types = Object.values(ticketTypesByName);
+    const body = document.getElementById("typeDistributionBody");
+    if (!types.length) {
+      body.innerHTML = `<tr><td colspan="3" class="py-6 text-center text-slate-400">Sin tipos configurados.</td></tr>`;
+      return;
+    }
+    body.innerHTML = types.map(type => {
+      const propios = tickets.filter(t => t.ticket_type_id === type.id);
+      const terminados = propios.filter(t => t.resolved_at);
+      const cumplidos = terminados.filter(t => horasTranscurridas(new Date(t.created_at), new Date(t.resolved_at)) <= slaHoras(t, type.name));
+      const pctSla = terminados.length ? Math.round((cumplidos.length / terminados.length) * 100) : null;
+      return `
+        <tr class="border-b border-slate-50 last:border-0">
+          <td class="py-2 text-slate-700">${type.name}</td>
+          <td class="py-2 text-right font-semibold text-brand-dark">${propios.length}</td>
+          <td class="py-2 text-right text-slate-500">${pctSla === null ? "—" : pctSla + "%"}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function renderWorkload(tickets) {
+    const body = document.getElementById("workloadBody");
+    const activas = tickets.filter(t => !ESTADOS_FINALES.has(t.estado));
+    const counts = {};
+    activas.forEach(t => {
+      const nombre = t.responsable_nombre || "Sin asignar";
+      counts[nombre] = (counts[nombre] || 0) + 1;
+    });
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    if (!entries.length) {
+      body.innerHTML = `<tr><td colspan="2" class="py-6 text-center text-slate-400">Sin solicitudes activas.</td></tr>`;
+      return;
+    }
+    body.innerHTML = entries.map(([nombre, count]) => `
+      <tr class="border-b border-slate-50 last:border-0">
+        <td class="py-2 text-slate-700">${esc(nombre)}</td>
+        <td class="py-2 text-right font-semibold text-brand-dark">${count}</td>
+      </tr>
+    `).join("");
+  }
+
+  function renderStatusDistribution(tickets) {
+    const counts = {};
+    tickets.forEach(t => { counts[t.estado] = (counts[t.estado] || 0) + 1; });
+    const body = document.getElementById("statusDistributionBody");
+    const estados = Object.keys(counts);
+    if (!estados.length) {
+      body.innerHTML = `<tr><td colspan="2" class="py-6 text-center text-slate-400">Sin solicitudes todavía.</td></tr>`;
+      return;
+    }
+    body.innerHTML = estados.map(estado => `
+      <tr class="border-b border-slate-50 last:border-0">
+        <td class="py-2 text-slate-700">${esc(estado)}</td>
+        <td class="py-2 text-right font-semibold text-brand-dark">${counts[estado]}</td>
+      </tr>
+    `).join("");
+  }
+
+  (async function init() {
+    const dept = await requireSession(BASE_PATH);
+    if (!dept) return;
+    renderNav("dashboard", dept, BASE_PATH, "from-rose-600 to-rose-700");
+
+    let ticketsRes;
+    try {
+      ticketsRes = await fetch("/api/admin/tickets");
+    } catch {
+      document.querySelector(".mx-auto").insertAdjacentHTML("afterbegin", '<div class="mb-4 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-600">No se pudo conectar con el servidor. Revisa tu conexión y recarga la página.</div>');
+      return;
+    }
+    if (ticketsRes.status === 401) { location.href = BASE_PATH; return; }
+    if (!ticketsRes.ok) {
+      document.querySelector(".mx-auto").insertAdjacentHTML("afterbegin", '<div class="mb-4 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-600">No se pudo cargar la información del panel.</div>');
+      return;
+    }
+    const ticketsData = await ticketsRes.json();
+    const tickets = ticketsData.tickets || [];
+    const ticketTypesByName = {};
+    const ticketTypesById = {};
+    (ticketsData.ticket_types || []).forEach(t => { ticketTypesByName[t.name] = t; ticketTypesById[t.id] = t; });
+
+    renderKpis(tickets, ticketTypesById);
+    renderTypeDistribution(tickets, ticketTypesByName);
+    renderWorkload(tickets);
+    renderStatusDistribution(tickets);
+    renderPrimeraRespuesta(tickets);
+  })();
+</script>
+</body>
+</html>

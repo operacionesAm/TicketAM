@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Talento AM</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT: '#2a5298', dark: '#1e3c72' },
+          accent: '#27ae60'
+        }
+      }
+    }
+  }
+</script>
+<style>
+  @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes bounceIn { 0% { transform: scale(0); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+  .anim-slide-up { animation: slideUp .4s ease-out; }
+  .anim-bounce-in { animation: bounceIn .6s ease-out; }
+  .campo-label { display:block; margin-bottom:.5rem; font-size:.875rem; font-weight:600; color:#1e3c72; }
+  .campo-input { width:100%; border-radius:.5rem; border-width:2px; border-color:#e2e8f0; background:#f8fafc; padding:.75rem .875rem; font-size:.875rem; outline:none; transition:.15s; }
+  .campo-input:focus { border-color:#2a5298; background:#fff; }
+  .campo-grupo { margin-bottom:1.25rem; }
+</style>
+</head>
+<body class="min-h-screen bg-rose-50 p-5 font-sans text-slate-800">
+  <div class="anim-slide-up mx-auto w-full max-w-lg rounded-2xl bg-white p-10 shadow-2xl">
+
+    <!-- HEADER -->
+    <div class="mb-8 border-b-[3px] border-brand-dark pb-5 text-center">
+      <img src="/tickets/assets/logo-am.png" alt="AM" class="mx-auto mb-3 h-14">
+      <h1 class="text-2xl font-bold text-brand-dark">Talento AM</h1>
+      <p class="text-sm text-slate-500">Grupo AM · Capital Humano</p>
+    </div>
+
+    <!-- MENSAJES -->
+    <div id="successMsg" class="mb-5 hidden rounded-xl border-2 border-emerald-500 bg-emerald-50 p-4 font-medium text-emerald-800"></div>
+    <div id="errorMsg" class="mb-5 hidden rounded-xl border-2 border-red-400 bg-red-50 p-4 font-medium text-red-800"></div>
+
+    <!-- SELECTOR DE INTENCIÓN -->
+    <div id="intentScreen" class="hidden">
+      <p class="mb-6 text-center text-sm text-slate-500">¿Qué necesitas hacer?</p>
+      <button class="mb-3 w-full rounded-xl bg-gradient-to-br from-brand to-brand-dark px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-brand/25 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('administrativo')">📄 Solicitud Administrativa</button>
+      <button class="mb-3 w-full rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('incidencia')">⚠️ Reporte de Incidencia</button>
+      <button class="mb-3 w-full rounded-xl bg-gradient-to-br from-violet-500 to-violet-700 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-violet-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('apoyo')">🧑‍⚕️ Apoyo Ocupacional</button>
+      <button class="mb-3 w-full rounded-xl bg-gradient-to-br from-sky-500 to-sky-700 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-sky-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('mobiliario')">🪑 Mobiliario y Espacios</button>
+      <button class="mb-3 w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('talento')">💼 Reclutamiento / Cambio de puesto</button>
+      <button class="w-full rounded-xl bg-gradient-to-br from-rose-500 to-rose-700 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="elegirIntento('capacitacion')">🎓 Capacitación</button>
+    </div>
+
+    <!-- FORMULARIO -->
+    <div id="formScreen" class="hidden">
+      <button class="mx-auto mb-5 block text-sm font-semibold text-brand underline" onclick="volverAIntent()">‹ Volver</button>
+      <h2 id="tituloFormulario" class="mb-5 text-lg font-bold text-brand-dark"></h2>
+
+      <div class="campo-grupo">
+        <label class="campo-label" for="nombreSolicitante">👤 Nombre completo</label>
+        <input type="text" id="nombreSolicitante" placeholder="Ej: Juan Pérez" class="campo-input">
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-label" for="correoSolicitante">📧 Correo electrónico</label>
+        <input type="email" id="correoSolicitante" placeholder="Ej: nombre@am.com.mx" class="campo-input">
+      </div>
+
+      <!-- Solicitud Administrativa -->
+      <div id="form_administrativo" class="hidden">
+        <div class="campo-grupo"><label class="campo-label">🏢 Departamento</label><select id="adm_departamento" class="campo-input"></select></div>
+        <div class="campo-grupo"><label class="campo-label">Puesto</label><input type="text" id="adm_puesto" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">Tipo de solicitud</label>
+          <select id="adm_tipo_solicitud" class="campo-input">
+            <option value="">-- Selecciona --</option>
+            <option>Constancia laboral</option><option>Constancia para embajada</option><option>Constancia para guardería</option>
+            <option>Actualizar expediente</option><option>Cambio de domicilio</option><option>Cambio de estado civil</option><option>Otra</option>
+          </select>
+        </div>
+        <div class="campo-grupo"><label class="campo-label">Descripción</label><textarea id="adm_descripcion" rows="3" class="campo-input"></textarea></div>
+        <div class="campo-grupo"><label class="campo-label">Urgencia</label>
+          <select id="adm_urgencia" class="campo-input"><option value="">-- Selecciona --</option><option>Normal</option><option>Urgente</option></select>
+        </div>
+        <div class="campo-grupo">
+          <label class="campo-label">📎 Archivo adjunto (opcional)</label>
+          <input type="file" id="adm_adjunto" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" onchange="onFileSelected(event)" class="campo-input">
+          <div id="adjuntoPreview_administrativo" class="mt-1 text-xs text-slate-500"></div>
+        </div>
+      </div>
+
+      <!-- Reporte de Incidencia -->
+      <div id="form_incidencia" class="hidden">
+        <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">🔒 Este reporte se maneja con confidencialidad.</div>
+        <div class="campo-grupo"><label class="campo-label">🏢 Departamento</label><select id="inc_departamento" class="campo-input"></select></div>
+        <div class="campo-grupo"><label class="campo-label">Puesto</label><input type="text" id="inc_puesto" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">Tipo de reporte</label>
+          <select id="inc_tipo_reporte" class="campo-input">
+            <option value="">-- Selecciona --</option>
+            <option>Conflicto entre colaboradores</option><option>Falta al reglamento</option><option>Ausencia injustificada</option>
+            <option>Conducta inapropiada</option><option>Incidente de seguridad</option><option>Otro</option>
+          </select>
+        </div>
+        <div class="campo-grupo"><label class="campo-label">Personas involucradas</label><textarea id="inc_personas" rows="2" class="campo-input"></textarea></div>
+        <div class="campo-grupo"><label class="campo-label">Descripción detallada de los hechos</label><textarea id="inc_descripcion" rows="3" class="campo-input"></textarea></div>
+        <div class="campo-grupo"><label class="campo-label">Fecha del incidente</label><input type="date" id="inc_fecha" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">Testigos (opcional)</label><textarea id="inc_testigos" rows="2" class="campo-input"></textarea></div>
+        <div class="campo-grupo">
+          <label class="campo-label">📎 Evidencia / Documentación (opcional)</label>
+          <input type="file" id="inc_adjunto" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" onchange="onFileSelected(event)" class="campo-input">
+          <div id="adjuntoPreview_incidencia" class="mt-1 text-xs text-slate-500"></div>
+        </div>
+      </div>
+
+      <!-- Apoyo Ocupacional -->
+      <div id="form_apoyo" class="hidden">
+        <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">🔒 Esta solicitud se maneja con la máxima confidencialidad.</div>
+        <div class="campo-grupo"><label class="campo-label">🏢 Departamento</label><select id="apo_departamento" class="campo-input"></select></div>
+        <div class="campo-grupo"><label class="campo-label">Tipo de apoyo requerido</label>
+          <select id="apo_tipo_apoyo" class="campo-input">
+            <option value="">-- Selecciona --</option>
+            <option>Apoyo psicológico</option><option>Contención emocional</option><option>Asesoramiento personal</option><option>Crisis emocional</option>
+          </select>
+        </div>
+        <div class="campo-grupo"><label class="campo-label">Descripción breve</label><textarea id="apo_descripcion" rows="3" class="campo-input"></textarea></div>
+        <div class="campo-grupo"><label class="campo-label">¿Deseas ser contactado por teléfono?</label>
+          <select id="apo_contacto" class="campo-input" onchange="actualizarTelefonoApoyo()"><option value="">-- Selecciona --</option><option>Sí</option><option>No</option></select>
+        </div>
+        <div class="campo-grupo" id="apo_telefonoWrap" style="display:none;">
+          <label class="campo-label">Teléfono</label><input type="text" id="apo_telefono" class="campo-input">
+        </div>
+      </div>
+
+      <!-- Mobiliario y Espacios -->
+      <div id="form_mobiliario" class="hidden">
+        <div class="campo-grupo"><label class="campo-label">🏢 Departamento</label><select id="mob_departamento" class="campo-input"></select></div>
+        <div class="campo-grupo"><label class="campo-label">Puesto</label><input type="text" id="mob_puesto" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">Tipo de solicitud</label>
+          <select id="mob_tipo_solicitud" class="campo-input">
+            <option value="">-- Selecciona --</option>
+            <option>Silla ergonómica</option><option>Escritorio</option><option>Monitor/Equipo</option><option>Adecuación de espacio</option><option>Otro mobiliario</option>
+          </select>
+        </div>
+        <div class="campo-grupo"><label class="campo-label">Descripción de la necesidad</label><textarea id="mob_descripcion" rows="3" class="campo-input"></textarea></div>
+        <div class="campo-grupo"><label class="campo-label">Justificación</label><textarea id="mob_justificacion" rows="2" class="campo-input"></textarea></div>
+        <div class="campo-grupo">
+          <label class="campo-label">📎 Foto/Documento de referencia (opcional)</label>
+          <input type="file" id="mob_adjunto" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" onchange="onFileSelected(event)" class="campo-input">
+          <div id="adjuntoPreview_mobiliario" class="mt-1 text-xs text-slate-500"></div>
+        </div>
+        <div class="campo-grupo"><label class="campo-label">Presupuesto aproximado (opcional)</label>
+          <select id="mob_presupuesto" class="campo-input"><option value="">-- Selecciona --</option><option>&lt;$500</option><option>$500-$1,000</option><option>$1,000-$2,000</option><option>&gt;$2,000</option></select>
+        </div>
+      </div>
+
+      <!-- Reclutamiento -->
+      <div id="form_talento" class="hidden">
+        <div class="campo-grupo"><label class="campo-label">Puesto actual</label><input type="text" id="tal_puesto_actual" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">🏢 Departamento</label><select id="tal_departamento" class="campo-input"></select></div>
+        <div class="campo-grupo"><label class="campo-label">Tipo de solicitud</label>
+          <select id="tal_tipo_solicitud" class="campo-input">
+            <option value="">-- Selecciona --</option>
+            <option>Reclutamiento para nueva vacante</option><option>Reclutamiento por reemplazo</option>
+            <option>Solicitud de promoción</option><option>Cambio de puesto</option><option>Transferencia a otra área</option>
+          </select>
+        </div>
+        <div class="campo-grupo"><label class="campo-label">Descripción de puesto/cambio</label><textarea id="tal_descripcion" rows="3" class="campo-input"></textarea></div>
+        <div class="campo-grupo"><label class="campo-label">Perfil buscado o justificación</label><textarea id="tal_perfil" rows="3" class="campo-input"></textarea></div>
+        <div class="campo-grupo"><label class="campo-label">Salario propuesto (opcional)</label><input type="number" id="tal_salario" class="campo-input"></div>
+        <div class="campo-grupo">
+          <label class="campo-label">📎 Documento de autorización (firma de jefe) — obligatorio</label>
+          <input type="file" id="tal_adjunto" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" onchange="onFileSelected(event)" class="campo-input">
+          <div id="adjuntoPreview_talento" class="mt-1 text-xs text-slate-500"></div>
+        </div>
+      </div>
+
+      <!-- Capacitación -->
+      <div id="form_capacitacion" class="hidden">
+        <div class="campo-grupo"><label class="campo-label">🏢 Departamento</label><select id="cap_departamento" class="campo-input"></select></div>
+        <div class="campo-grupo"><label class="campo-label">Puesto</label><input type="text" id="cap_puesto" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">Tipo de capacitación</label>
+          <select id="cap_tipo_capacitacion" class="campo-input">
+            <option value="">-- Selecciona --</option>
+            <option>Curso externo</option><option>Certificación profesional</option><option>Taller interno</option><option>Conferencia/Seminario</option><option>Otra</option>
+          </select>
+        </div>
+        <div class="campo-grupo"><label class="campo-label">Nombre del curso/certificación</label><input type="text" id="cap_nombre_curso" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">Descripción y objetivo</label><textarea id="cap_descripcion" rows="3" class="campo-input"></textarea></div>
+        <div class="campo-grupo"><label class="campo-label">Duración</label><input type="text" id="cap_duracion" placeholder="Ej: 3 días" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">Costo estimado</label><input type="number" id="cap_costo" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">Proveedor/Institución</label><input type="text" id="cap_proveedor" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">Fechas propuestas</label><input type="text" id="cap_fechas" placeholder="Ej: 12-14 de marzo" class="campo-input"></div>
+        <div class="campo-grupo"><label class="campo-label">Beneficio para el área</label><textarea id="cap_beneficio" rows="2" class="campo-input"></textarea></div>
+      </div>
+
+      <button class="mt-2 w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="submitForm()">✅ Enviar Solicitud</button>
+    </div>
+
+    <!-- CARGA -->
+    <div id="loadingDiv" class="hidden py-8 text-center">
+      <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-brand"></div>
+      <p class="text-slate-500">Registrando solicitud...</p>
+    </div>
+
+    <!-- ÉXITO -->
+    <div id="successDiv" class="hidden py-8 text-center">
+      <div class="anim-bounce-in mb-5 text-6xl">✅</div>
+      <h2 class="mb-4 text-xl font-bold text-accent">¡Solicitud Registrada!</h2>
+      <p class="mb-4 text-sm text-slate-500">Capital Humano le dará seguimiento y te avisará por correo de cualquier actualización.</p>
+      <div class="my-5 rounded-xl border-2 border-brand bg-slate-50 p-5">
+        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-dark">Folio</div>
+        <div id="folioDisplay" class="font-mono text-2xl font-bold text-brand">TKT-CH-XXXXX</div>
+      </div>
+      <p class="mt-5 text-[13px] text-slate-500">ℹ️ Guarda este folio para futuros seguimientos</p>
+      <button class="mt-5 w-full rounded-xl bg-gradient-to-br from-accent to-emerald-700 px-5 py-4 text-base font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="location.reload()">↻ Registrar otra</button>
+    </div>
+  </div>
+
+  <p class="mx-auto mt-5 w-full max-w-lg text-center text-xs text-slate-500">Panel del administrador: <a href="/talento/admin" class="font-semibold text-brand-dark underline">/talento/admin</a></p>
+
+<script>
+  const DEPARTMENT_SLUG = "talento-am";
+  const DEPARTAMENTOS = [
+    "AM Digital", "Sistemas", "Xpress DM", "Redacción AM", "Operaciones",
+    "Suscripciones", "Capital Humano", "Mercadotecnia", "Publicidad",
+    "Cobranza", "Contabilidad", "Imprenta", "Producción", "Circulación",
+  ];
+
+  const TIPO_NOMBRES = {
+    administrativo: "Solicitud Administrativa",
+    incidencia: "Reporte de Incidencia",
+    apoyo: "Solicitud de Apoyo Ocupacional",
+    mobiliario: "Solicitud de Mobiliario y Espacios",
+    talento: "Solicitud de Reclutamiento",
+    capacitacion: "Solicitud de Capacitación",
+  };
+  const TIPO_TITULOS = {
+    administrativo: "📄 Solicitud Administrativa",
+    incidencia: "⚠️ Reporte de Incidencia",
+    apoyo: "🧑‍⚕️ Apoyo Ocupacional",
+    mobiliario: "🪑 Mobiliario y Espacios",
+    talento: "💼 Reclutamiento / Cambio de puesto",
+    capacitacion: "🎓 Capacitación",
+  };
+
+  // key del <select>/<input> -> key que se manda en `campos`. Nombre y
+  // correo no van aquí: ya son solicitante_nombre/solicitante_email.
+  const CAMPOS_POR_TIPO = {
+    administrativo: [
+      ["adm_departamento", "departamento_solicitante", true],
+      ["adm_puesto", "puesto", true],
+      ["adm_tipo_solicitud", "tipo_solicitud", true],
+      ["adm_descripcion", "descripcion", true],
+      ["adm_urgencia", "urgencia", true],
+    ],
+    incidencia: [
+      ["inc_departamento", "departamento_solicitante", true],
+      ["inc_puesto", "puesto", true],
+      ["inc_tipo_reporte", "tipo_reporte", true],
+      ["inc_personas", "personas_involucradas", true],
+      ["inc_descripcion", "descripcion", true],
+      ["inc_fecha", "fecha_incidente", true],
+      ["inc_testigos", "testigos", false],
+    ],
+    apoyo: [
+      ["apo_departamento", "departamento_solicitante", true],
+      ["apo_tipo_apoyo", "tipo_apoyo", true],
+      ["apo_descripcion", "descripcion", true],
+      ["apo_contacto", "desea_contacto_telefonico", true],
+      ["apo_telefono", "telefono", false],
+    ],
+    mobiliario: [
+      ["mob_departamento", "departamento_solicitante", true],
+      ["mob_puesto", "puesto", true],
+      ["mob_tipo_solicitud", "tipo_solicitud", true],
+      ["mob_descripcion", "descripcion", true],
+      ["mob_justificacion", "justificacion", true],
+      ["mob_presupuesto", "presupuesto", false],
+    ],
+    talento: [
+      ["tal_puesto_actual", "puesto_actual", true],
+      ["tal_departamento", "departamento_solicitante", true],
+      ["tal_tipo_solicitud", "tipo_solicitud", true],
+      ["tal_descripcion", "descripcion", true],
+      ["tal_perfil", "perfil_justificacion", true],
+      ["tal_salario", "salario_propuesto", false],
+    ],
+    capacitacion: [
+      ["cap_departamento", "departamento_solicitante", true],
+      ["cap_puesto", "puesto", true],
+      ["cap_tipo_capacitacion", "tipo_capacitacion", true],
+      ["cap_nombre_curso", "nombre_curso", true],
+      ["cap_descripcion", "descripcion", true],
+      ["cap_duracion", "duracion", true],
+      ["cap_costo", "costo_estimado", true],
+      ["cap_proveedor", "proveedor", true],
+      ["cap_fechas", "fechas_propuestas", true],
+      ["cap_beneficio", "beneficio_area", true],
+    ],
+  };
+  // Tipos que traen un campo de archivo (id del <input type=file> por tipo).
+  const ADJUNTO_INPUT_ID = { administrativo: "adm_adjunto", incidencia: "inc_adjunto", mobiliario: "mob_adjunto", talento: "tal_adjunto" };
+  const ADJUNTO_REQUERIDO = new Set(["talento"]);
+
+  let tipoActual = null;
+  let ticketTypesByName = {};
+  let adjuntoBase64 = null;
+  let adjuntoNombreArchivo = null;
+
+  function poblarDepartamentos() {
+    document.querySelectorAll("select[id$='_departamento'], #tal_departamento").forEach(select => {
+      DEPARTAMENTOS.forEach(d => {
+        const opt = document.createElement("option");
+        opt.value = d; opt.textContent = d;
+        select.appendChild(opt);
+      });
+    });
+  }
+
+  async function cargarDatosDepartamento() {
+    const respuesta = await fetch(`/api/departments/${DEPARTMENT_SLUG}`);
+    if (!respuesta.ok) throw new Error("No se pudo cargar Talento AM");
+    const datos = await respuesta.json();
+    ticketTypesByName = {};
+    (datos.ticket_types || []).forEach(t => ticketTypesByName[t.name] = t);
+  }
+
+  function elegirIntento(tipo) {
+    tipoActual = tipo;
+    adjuntoBase64 = null;
+    adjuntoNombreArchivo = null;
+    document.querySelectorAll("[id^='form_']").forEach(el => el.classList.add("hidden"));
+    document.getElementById("form_" + tipo).classList.remove("hidden");
+    document.getElementById("tituloFormulario").textContent = TIPO_TITULOS[tipo];
+    document.getElementById("intentScreen").classList.add("hidden");
+    document.getElementById("formScreen").classList.remove("hidden");
+  }
+
+  function volverAIntent() {
+    document.getElementById("formScreen").classList.add("hidden");
+    document.getElementById("intentScreen").classList.remove("hidden");
+  }
+
+  function actualizarTelefonoApoyo() {
+    const deseaContacto = document.getElementById("apo_contacto").value;
+    document.getElementById("apo_telefonoWrap").style.display = deseaContacto === "Sí" ? "" : "none";
+  }
+
+  const ADJUNTO_MAX_LADO = 1600;
+  const ADJUNTO_CALIDAD = 0.8;
+  const EXTENSIONES_PERMITIDAS = ["pdf", "jpg", "jpeg", "png", "doc", "docx", "xls", "xlsx"];
+
+  function onFileSelected(event) {
+    const archivo = event.target.files[0];
+    const previewEl = document.getElementById("adjuntoPreview_" + tipoActual);
+    if (!archivo) { adjuntoBase64 = null; adjuntoNombreArchivo = null; if (previewEl) previewEl.textContent = ""; return; }
+
+    const extension = (archivo.name.split(".").pop() || "").toLowerCase();
+    if (!EXTENSIONES_PERMITIDAS.includes(extension)) {
+      showError("Tipo de archivo no permitido: ." + extension);
+      event.target.value = "";
+      return;
+    }
+    if (archivo.size > 5 * 1024 * 1024) {
+      showError("El archivo no puede pesar más de 5 MB");
+      event.target.value = "";
+      return;
+    }
+
+    adjuntoNombreArchivo = archivo.name;
+    const esImagen = ["jpg", "jpeg", "png"].includes(extension);
+    const lector = new FileReader();
+    lector.onload = () => {
+      if (!esImagen) {
+        adjuntoBase64 = lector.result;
+        if (previewEl) previewEl.textContent = `📎 ${archivo.name}`;
+        return;
+      }
+      // Misma compresión que ya usa el formulario de reportes de falla —
+      // solo para que la subida no sea pesada, el backend la vuelve a
+      // procesar al recibirla.
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > ADJUNTO_MAX_LADO || height > ADJUNTO_MAX_LADO) {
+          const escala = ADJUNTO_MAX_LADO / Math.max(width, height);
+          width = Math.round(width * escala);
+          height = Math.round(height * escala);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        adjuntoBase64 = canvas.toDataURL("image/jpeg", ADJUNTO_CALIDAD);
+        if (previewEl) previewEl.textContent = `📎 ${archivo.name}`;
+      };
+      img.src = lector.result;
+    };
+    lector.readAsDataURL(archivo);
+  }
+
+  function showMessage(type, message) {
+    const elem = type === "success" ? document.getElementById("successMsg") : document.getElementById("errorMsg");
+    elem.textContent = message;
+    elem.classList.remove("hidden");
+    setTimeout(() => { elem.classList.add("hidden"); }, 6000);
+  }
+  function showError(message) { showMessage("error", message); }
+
+  function showLoading(show) {
+    document.getElementById("loadingDiv").classList.toggle("hidden", !show);
+    document.getElementById("formScreen").classList.toggle("hidden", show);
+  }
+
+  async function submitForm() {
+    const ticketType = ticketTypesByName[TIPO_NOMBRES[tipoActual]];
+    if (!ticketType) { showError("Este tipo de solicitud no está configurado todavía."); return; }
+
+    const nombreSolicitante = document.getElementById("nombreSolicitante").value.trim();
+    const correoSolicitante = document.getElementById("correoSolicitante").value.trim();
+    if (nombreSolicitante.length < 2) { showError("Escribe tu nombre completo"); return; }
+    if (!correoSolicitante || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoSolicitante)) {
+      showError("Escribe un correo electrónico válido");
+      return;
+    }
+
+    const campos = {};
+    for (const [id, campoKey, requerido] of CAMPOS_POR_TIPO[tipoActual]) {
+      const el = document.getElementById(id);
+      const value = (el.value || "").trim();
+      if (requerido && !value) {
+        const label = el.closest(".campo-grupo")?.querySelector(".campo-label")?.textContent || campoKey;
+        showError(`Completa el campo "${label}"`);
+        return;
+      }
+      if (value) campos[campoKey] = value;
+    }
+
+    if (tipoActual === "apoyo" && campos.desea_contacto_telefonico === "Sí" && !campos.telefono) {
+      showError("Escribe tu teléfono para que te podamos contactar");
+      return;
+    }
+
+    const adjuntoInputId = ADJUNTO_INPUT_ID[tipoActual];
+    if (adjuntoInputId && ADJUNTO_REQUERIDO.has(tipoActual) && !adjuntoBase64) {
+      showError("Adjunta el documento requerido antes de enviar");
+      return;
+    }
+
+    const payload = {
+      ticket_type_id: ticketType.id,
+      entity_id: null,
+      solicitante_nombre: nombreSolicitante,
+      solicitante_email: correoSolicitante,
+      campos,
+    };
+    if (adjuntoBase64) {
+      payload.adjunto_base64 = adjuntoBase64;
+      payload.adjunto_nombre = adjuntoNombreArchivo;
+    }
+
+    showLoading(true);
+    try {
+      const response = await fetch(`/api/departments/${DEPARTMENT_SLUG}/tickets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      showLoading(false);
+      if (response.ok) {
+        document.getElementById("formScreen").classList.add("hidden");
+        document.getElementById("successDiv").classList.remove("hidden");
+        document.getElementById("folioDisplay").textContent = data.folio;
+      } else {
+        showError("Error: " + (data.detail || "No se pudo registrar"));
+        document.getElementById("formScreen").classList.remove("hidden");
+      }
+    } catch (err) {
+      showLoading(false);
+      document.getElementById("formScreen").classList.remove("hidden");
+      showError("Error de conexión: " + err.message);
+      console.error(err);
+    }
+  }
+
+  window.onload = async function () {
+    poblarDepartamentos();
+    try {
+      await cargarDatosDepartamento();
+    } catch (e) {
+      showError("No se pudo cargar el sistema de solicitudes: " + e.message);
+    }
+    document.getElementById("intentScreen").classList.remove("hidden");
+  };
+</script>
+</body>
+</html>

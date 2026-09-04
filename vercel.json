@@ -18,6 +18,11 @@
     { "src": "/global/panel", "dest": "/frontend/tickets/admin/global-panel.html" },
     { "src": "/", "dest": "/frontend/tickets/usuario/index.html" },
     { "src": "/operador", "dest": "/frontend/tickets/operador/index.html" },
+    { "src": "/talento", "dest": "/frontend/tickets/talento/index.html" },
+    { "src": "/talento/admin", "dest": "/frontend/tickets/admin-talento/login.html" },
+    { "src": "/talento/admin/dashboard", "dest": "/frontend/tickets/admin-talento/dashboard.html" },
+    { "src": "/talento/admin/tickets", "dest": "/frontend/tickets/admin-talento/tickets.html" },
+    { "src": "/talento/admin/configuracion", "dest": "/frontend/tickets/admin-talento/configuracion.html" },
     { "src": "/(.*)", "dest": "/frontend/$1" }
   ]
 }

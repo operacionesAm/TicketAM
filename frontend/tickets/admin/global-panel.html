@@ -29,7 +29,18 @@
   </div>
 
   <div class="mx-auto max-w-5xl px-5 py-8">
-    <div id="summaryStats" class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4"></div>
+    <div id="summaryStats" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4"></div>
+
+    <div id="storageCard" class="mb-6 rounded-2xl bg-white p-5 shadow-sm">
+      <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Storage de Supabase (fotos + adjuntos)</h2>
+        <span id="storageText" class="text-sm font-semibold text-slate-600">Cargando…</span>
+      </div>
+      <div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+        <div id="storageBar" class="h-full rounded-full bg-accent transition-all" style="width: 0%"></div>
+      </div>
+      <div id="storageBuckets" class="mt-2 text-xs text-slate-400"></div>
+    </div>
 
     <div class="mb-4 flex items-center justify-between">
       <h1 class="text-xl font-bold text-brand-dark">Departamentos</h1>
@@ -123,6 +134,40 @@
     departments = data.departments || [];
     renderSummary();
     renderDepartments();
+  }
+
+  const BUCKET_LABELS = { "reportes-fotos": "Flota (fotos)", "ch-adjuntos": "Talento AM (adjuntos)" };
+
+  function formatMb(bytes) {
+    return (bytes / (1024 * 1024)).toFixed(1);
+  }
+
+  async function loadStorageUsage() {
+    let response;
+    try {
+      response = await fetch("/api/global/storage-usage");
+    } catch {
+      document.getElementById("storageText").textContent = "No se pudo consultar.";
+      return;
+    }
+    if (!response.ok) {
+      document.getElementById("storageText").textContent = "No se pudo consultar.";
+      return;
+    }
+    const data = await response.json();
+    const usedMb = formatMb(data.total_bytes);
+    const limitMb = formatMb(data.limit_bytes);
+    const pct = data.limit_bytes ? Math.min(100, (data.total_bytes / data.limit_bytes) * 100) : 0;
+
+    document.getElementById("storageText").textContent = `${usedMb} MB de ${limitMb} MB (${pct.toFixed(1)}%) · ${data.total_files} archivo${data.total_files === 1 ? "" : "s"}`;
+
+    const bar = document.getElementById("storageBar");
+    bar.style.width = `${pct}%`;
+    bar.className = "h-full rounded-full transition-all " + (pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-accent");
+
+    document.getElementById("storageBuckets").textContent = (data.buckets || [])
+      .map(b => `${BUCKET_LABELS[b.bucket] || b.bucket}: ${formatMb(b.bytes)} MB (${b.files})`)
+      .join("  ·  ");
   }
 
   function renderSummary() {
@@ -273,6 +318,7 @@
   }
 
   loadDepartments();
+  loadStorageUsage();
 </script>
 </body>
 </html>

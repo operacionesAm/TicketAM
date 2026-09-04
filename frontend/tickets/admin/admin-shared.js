@@ -24,38 +24,49 @@ function esc(value) {
     .replace(/'/g, "&#39;");
 }
 
-async function requireSession() {
+// loginPath: por defecto "/admin" (Flota). Otros sistemas de tickets (p.ej.
+// Talento AM en /talento/admin) pasan su propia ruta de login — ahí mismo
+// vive el panel, igual que "/admin" ya es tanto login como base de Flota.
+async function requireSession(loginPath = "/admin") {
   const response = await fetch("/api/admin/me");
   if (!response.ok) {
-    location.href = "/admin";
+    location.href = loginPath;
     return null;
   }
   const data = await response.json();
   return data.department;
 }
 
-async function logout() {
+async function logout(loginPath = "/admin") {
   await fetch("/api/admin/logout", { method: "POST" });
-  location.href = "/admin";
+  location.href = loginPath;
 }
 
-function renderNav(activeKey, dept) {
+// basePath: por defecto "/admin" (Flota) — las páginas de otro sistema de
+// tickets (p.ej. Talento AM) pasan su propia base ("/talento/admin") para
+// que los links del nav y el botón de salir apunten a su propio panel.
+// navGradient: par de paradas de degradado para la barra superior — por
+// defecto el azul de Flota (usa los colores "brand"/"brand-dark" que cada
+// página define en su propio tailwind.config); otro sistema de tickets
+// puede pasar cualquier par de clases de color de Tailwind (p.ej.
+// "from-rose-600 to-rose-700") para diferenciarse a simple vista.
+function renderNav(activeKey, dept, basePath = "/admin", navGradient = "from-brand-dark to-brand") {
   const nav = document.getElementById("adminNav");
   if (!nav) return;
   const links = [
-    { key: "dashboard", label: "Dashboard", href: "/admin/dashboard" },
-    { key: "tickets", label: "Tickets", href: "/admin/tickets" },
-    { key: "configuracion", label: "Configuración", href: "/admin/configuracion" }
+    { key: "dashboard", label: "Dashboard", href: `${basePath}/dashboard` },
+    { key: "tickets", label: "Tickets", href: `${basePath}/tickets` },
+    { key: "configuracion", label: "Configuración", href: `${basePath}/configuracion` }
   ];
   nav.innerHTML = `
-    <div class="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-br from-brand-dark to-brand px-4 py-5 sm:px-6 text-white">
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-br ${navGradient} px-4 py-5 sm:px-6 text-white">
       <div class="flex min-w-0 items-center gap-3">
         <img src="/tickets/assets/logo-am.png" alt="AM" class="h-8 w-auto shrink-0">
         <h2 class="truncate text-lg font-bold">Sistema de tickets de ${dept ? dept.name : "Panel"}</h2>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         ${links.map(l => `<a href="${l.href}" class="${(l.key === activeKey ? NAV_ACTIVE : NAV_INACTIVE).join(" ")}">${l.label}</a>`).join("")}
-        <button class="rounded-lg border border-white/30 bg-white/15 px-4 py-2 text-sm font-semibold transition hover:bg-white/25" onclick="logout()">Cerrar sesión</button>
+        <button class="rounded-lg border border-white/30 bg-white/15 px-4 py-2 text-sm font-semibold transition hover:bg-white/25" onclick="logout('${basePath}')">Cerrar sesión</button>
       </div>
     </div>
   `;
