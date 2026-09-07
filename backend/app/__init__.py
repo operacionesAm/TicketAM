@@ -18,7 +18,21 @@ def create_app() -> Flask:
     # el navegador nunca hace una petición cross-origin y las cookies de
     # sesión del admin funcionan igual que si todo fuera un solo servidor.
     app = Flask(__name__, static_folder=None)
-    app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+    secret_key = os.environ.get("FLASK_SECRET_KEY")
+    if not secret_key:
+        # Sin esta variable, cada arranque del proceso (en Vercel, cada
+        # cold start de la función) firma las cookies con una llave nueva
+        # al azar — una instancia no puede validar la sesión que firmó
+        # otra, así que el login "funciona" un instante y luego el usuario
+        # queda deslogueado sin ningún error visible. Se avisa fuerte en
+        # los logs en vez de fallar en silencio (ver README, sección
+        # Supabase/Despliegue en Vercel).
+        print("[app] ADVERTENCIA: FLASK_SECRET_KEY no está configurado — usando una llave "
+              "aleatoria temporal. Las sesiones de admin se van a invalidar solas entre "
+              "cold starts en Vercel. Configura FLASK_SECRET_KEY en las variables de "
+              "entorno del proyecto (los 3 ambientes: Production, Preview y Development).")
+        secret_key = secrets.token_hex(32)
+    app.secret_key = secret_key
     app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 
     from app.routes.admin import admin_bp

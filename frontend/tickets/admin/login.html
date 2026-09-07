@@ -43,7 +43,7 @@
       <div id="gateError" class="mb-4 hidden rounded-xl border-2 border-red-400 bg-red-50 px-3 py-3 text-sm font-semibold text-red-800"></div>
       <input id="passcodeInput" class="mb-2 w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-4 text-center font-mono text-2xl tracking-[0.5em] outline-none focus:border-brand focus:bg-white" type="password" inputmode="numeric" maxlength="8" placeholder="········" autocomplete="off">
       <p class="mb-6 text-xs text-slate-400">No compartas esta contraseña con nadie.</p>
-      <button class="w-full rounded-xl bg-gradient-to-br from-brand to-brand-dark px-4 py-4 text-sm font-bold text-white shadow-lg shadow-brand/30 transition hover:-translate-y-0.5 hover:shadow-xl" onclick="login()">Entrar</button>
+      <button id="loginBtn" class="w-full rounded-xl bg-gradient-to-br from-brand to-brand-dark px-4 py-4 text-sm font-bold text-white shadow-lg shadow-brand/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60" onclick="login()">Entrar</button>
       <button class="mt-4 text-sm font-semibold text-brand underline" onclick="showWelcome()">‹ Volver</button>
     </div>
   </div>
@@ -70,17 +70,37 @@
     el.classList.remove("hidden");
   }
 
+  // Evita el doble clic: con la respuesta lenta (cold start en Vercel puede
+  // tardar varios segundos), un segundo clic mientras el primero sigue en
+  // vuelo puede disparar dos logins casi al mismo tiempo — si esa segunda
+  // petición viniera de un intento anterior en otro sistema de tickets,
+  // la cookie que "gane" en el navegador podría no ser la correcta.
+  let loginEnCurso = false;
+
   async function login() {
+    if (loginEnCurso) return;
     const passcode = document.getElementById("passcodeInput").value.trim();
     if (!passcode) { gateError("Ingresa tu contraseña"); return; }
-    const response = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ passcode })
-    });
-    const data = await response.json();
-    if (!response.ok) { gateError(data.detail || "Contraseña incorrecta"); return; }
-    location.href = "/admin/dashboard";
+
+    loginEnCurso = true;
+    const boton = document.getElementById("loginBtn");
+    const textoOriginal = boton.textContent;
+    boton.disabled = true;
+    boton.textContent = "Entrando…";
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passcode })
+      });
+      const data = await response.json();
+      if (!response.ok) { gateError(data.detail || "Contraseña incorrecta"); return; }
+      location.href = "/admin/dashboard";
+    } finally {
+      loginEnCurso = false;
+      boton.disabled = false;
+      boton.textContent = textoOriginal;
+    }
   }
 
   document.getElementById("passcodeInput").addEventListener("keydown", e => {
