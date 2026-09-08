@@ -183,8 +183,8 @@ podía terminar siendo la de otro sistema si había una petición vieja todavía
   unidad — incluida "Pedir un vehículo": a diferencia del colaborador común, el operador
   sí elige qué unidad toma, y por traer `entity_id` desde la creación el backend la
   autoriza de inmediato (autoasignación), sin esperar revisión de flota — salvo que el
-  vehículo esté marcado `Inactivo`, en cuyo caso cae a revisión igual que cualquier
-  solicitud normal.
+  vehículo esté marcado `Inactivo` o `Dado de baja`, en cuyo caso cae a revisión igual
+  que cualquier solicitud normal.
 
 Ambas páginas comparten la misma API pública y el mismo QR físico de cada vehículo (que
 sigue apuntando a `/?placa=...`) — el botón "Escanear QR" del operador lee esa misma
@@ -204,10 +204,11 @@ calculado en vivo sobre los tickets/vehículos del departamento.
 - **Tickets** (kanban por tipo, Lista y Archivo — ver abajo). Clasificar un reporte
   (tipo de incidente + prioridad), mover de estado (drag & drop o select — valida contra
   los estados del tipo), asignar vehículo a una "Solicitud de vehículo" (bloquea unidades
-  `Inactivo`), asignar responsable (texto libre), dejar observaciones (con opción de
-  notificar por correo), ver la foto adjunta.
-- **Inventario**: alta/edición/baja de vehículos y generación/impresión de QR en lote.
-  Toda alta, edición o baja de vehículos vive aquí.
+  `Inactivo`/`Dado de baja`), asignar responsable (texto libre), dejar observaciones (con
+  opción de notificar por correo), ver la foto adjunta.
+- **Inventario**: alta, edición y generación/impresión de QR de vehículos — ver
+  [Estados de un vehículo](#estados-de-un-vehículo-y-por-qué-no-se-pueden-eliminar) para
+  cómo se retira una unidad sin perder su historial.
 - **Reportes individuales**: de solo lectura — tickets, estadísticas de tiempo de
   solución e historial de eventos de un vehículo, pensado para detectar unidades con
   desgaste o fallas recurrentes.
@@ -248,6 +249,31 @@ queda pendiente de revisión, `send_vehicle_assigned_email` si se autoasignó o 
 admin la autoriza) — que como último paso obligatorio debe presentar copia de su
 licencia de conducir. El panel de asignación en `/admin/tickets` muestra el mismo
 recordatorio al admin.
+
+### Estados de un vehículo y por qué no se pueden eliminar
+
+Un vehículo tiene tres estados posibles (`atributos.estado` en `entities`):
+
+| Estado | Significa | Cuenta en el inventario/KPIs | Se puede asignar |
+|---|---|---|---|
+| `Activo` | En operación normal | Sí | Sí |
+| `Inactivo` | Fuera de servicio temporalmente (taller, etc.) | Sí | No |
+| `Dado de baja` | Se fue de verdad — vendido, robado, pérdida total | **No** | No |
+
+El panel admin **no tiene forma de borrar un vehículo** — no existe endpoint de borrado
+(`DELETE /api/admin/entities/{id}` fue retirado a propósito). La razón es el esquema:
+`tickets.entity_id` referencia `entities` con `on delete set null` y `servicios.entity_id`
+con `on delete cascade` — un borrado real desvincularía los tickets viejos de su vehículo
+y **destruiría por completo** el historial de mantenimiento de esa unidad. En vez de
+borrar, un vehículo que se vende, se pierde o sufre una pérdida total se marca como
+**`Dado de baja`** (mismo formulario de edición en `/admin/inventario`, sin campo nuevo):
+desaparece de los contadores del Dashboard, de la vista normal del Inventario (solo
+aparece si filtras explícitamente por ese estado) y de todos los selectores de vehículo
+de las pantallas públicas (`/`, `/operador`) y del picker de asignación en
+`/admin/tickets` — pero la fila en `entities` sigue existiendo, así que sus tickets,
+fotos y servicios pasados se siguen viendo exactamente igual en **Reportes individuales**,
+**Histórico de Piezas**, **Histórico de Siniestros** y **Servicios Programados**, que
+deliberadamente no filtran por estado porque son las pantallas de historial.
 
 ### Imprimir QR en lote (Inventario)
 
@@ -564,8 +590,9 @@ Documentadas a propósito para quien retome esto después:
 - `GET /api/admin/google/connect` (acepta `?return_to=` para volver a la pantalla de
   Configuración correcta) / `GET /api/admin/google/callback` / `POST /api/admin/google/disconnect`.
 - `GET /api/admin/entities` / `POST /api/admin/entities` / `PATCH /api/admin/entities/{id}`
-  / `DELETE /api/admin/entities/{id}` / `GET /api/admin/entities/{id}/qr` — catálogo de
-  vehículos (Flota; cualquier departamento podría usarlo).
+  / `GET /api/admin/entities/{id}/qr` — catálogo de vehículos (Flota; cualquier
+  departamento podría usarlo). Sin `DELETE` a propósito — ver
+  [Estados de un vehículo](#estados-de-un-vehículo-y-por-qué-no-se-pueden-eliminar).
 - `GET /api/admin/servicios` / `POST /api/admin/servicios` — servicios programados de
   motocicletas (Flota).
 - `GET /api/admin/events` — eventos (`ticket_events`), filtrables por `?entity_id=` y/o

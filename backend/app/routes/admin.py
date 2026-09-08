@@ -157,6 +157,13 @@ ESTADOS_FINALES = {
     "Completado", "Rechazado", "Cancelado", "Contratado", "Entregado",  # Talento AM
 }
 
+# "Inactivo" = temporalmente fuera de servicio (en el taller, etc.), sigue
+# contando como parte de la flota. "Dado de baja" = se fue de verdad
+# (vendido, robado, pérdida total) — no se borra el registro (tickets y
+# servicios ya generados deben conservar su historial), solo deja de poder
+# recibir asignaciones nuevas.
+ENTIDAD_ESTADOS_NO_ASIGNABLES = {"Inactivo", "Dado de baja"}
+
 DEMO_ESTADOS_BY_TYPE = {
     DEMO_TYPE_REPORTE["id"]: set(DEMO_TYPE_REPORTE["estados"]),
     DEMO_TYPE_ASIGNACION["id"]: set(DEMO_TYPE_ASIGNACION["estados"]),
@@ -248,7 +255,7 @@ def admin_assign_vehiculo(ticket_id: str):
         entity = next((e for e in DEMO_ENTITIES if e["id"] == entity_id and e["department_id"] == department_id), None)
         if not entity:
             return error("Vehículo no encontrado", 404)
-        if (entity.get("atributos") or {}).get("estado") == "Inactivo":
+        if (entity.get("atributos") or {}).get("estado") in ENTIDAD_ESTADOS_NO_ASIGNABLES:
             return error("Solo se pueden asignar vehículos activos", 400)
         ticket["entity_id"] = entity_id
         ticket["estado"] = "Asignado"
@@ -266,7 +273,7 @@ def admin_assign_vehiculo(ticket_id: str):
     entity_result = supabase.table("entities").select("*").eq("id", entity_id).single().execute()
     if not entity_result.data or entity_result.data["department_id"] != department_id:
         return error("Vehículo no encontrado", 404)
-    if (entity_result.data.get("atributos") or {}).get("estado") == "Inactivo":
+    if (entity_result.data.get("atributos") or {}).get("estado") in ENTIDAD_ESTADOS_NO_ASIGNABLES:
         return error("Solo se pueden asignar vehículos activos", 400)
 
     updated = supabase.table("tickets").update({
@@ -455,25 +462,6 @@ def admin_update_entity(entity_id: str):
     if not result.data:
         return error("No se pudo actualizar el vehículo (¿la placa ya existe?)", 400)
     return jsonify({"entity": result.data[0]})
-
-
-@admin_bp.delete("/api/admin/entities/<entity_id>")
-@require_admin
-def admin_delete_entity(entity_id: str):
-    department_id = session["department_id"]
-
-    if not supabase:
-        before = len(DEMO_ENTITIES)
-        DEMO_ENTITIES[:] = [e for e in DEMO_ENTITIES if not (e["id"] == entity_id and e["department_id"] == department_id)]
-        if len(DEMO_ENTITIES) == before:
-            return error("Vehículo no encontrado", 404)
-        return jsonify({"ok": True})
-
-    current = supabase.table("entities").select("department_id").eq("id", entity_id).single().execute()
-    if not current.data or current.data["department_id"] != department_id:
-        return error("Vehículo no encontrado", 404)
-    supabase.table("entities").delete().eq("id", entity_id).execute()
-    return jsonify({"ok": True})
 
 
 @admin_bp.get("/api/admin/entities/<entity_id>/qr")

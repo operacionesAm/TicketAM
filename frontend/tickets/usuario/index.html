@@ -191,15 +191,20 @@
         if (!respuesta.ok) throw new Error("No se pudo cargar la información del departamento");
         const datos = await respuesta.json();
 
-        VEHICULOS = (datos.entities || []).map(e => ({
-            id: e.id,
-            placa: e.codigo,
-            marca: e.atributos?.marca || "",
-            modelo: e.atributos?.modelo || e.nombre || "",
-            año: e.atributos?.año || "",
-            estado: e.atributos?.estado || "",
-            departamento: e.atributos?.departamento || ""
-        }));
+        // "Dado de baja" (vendido, pérdida total, etc.) ya no existe para
+        // efectos prácticos — se oculta aquí (selector y escaneo de QR) aunque
+        // su historial de tickets siga intacto en el panel de administrador.
+        VEHICULOS = (datos.entities || [])
+            .filter(e => e.atributos?.estado !== "Dado de baja")
+            .map(e => ({
+                id: e.id,
+                placa: e.codigo,
+                marca: e.atributos?.marca || "",
+                modelo: e.atributos?.modelo || e.nombre || "",
+                año: e.atributos?.año || "",
+                estado: e.atributos?.estado || "",
+                departamento: e.atributos?.departamento || ""
+            }));
 
         TICKET_TYPE_REPORTE = (datos.ticket_types || []).find(t => t.name === "Reporte de falla") || null;
         TICKET_TYPE_ASIGNACION = (datos.ticket_types || []).find(t => t.name === "Solicitud de vehículo") || null;

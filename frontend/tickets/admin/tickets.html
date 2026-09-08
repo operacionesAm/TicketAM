@@ -189,16 +189,19 @@
     return !!type && ticket.ticket_type_id === type.id;
   }
 
-  // Activo = cualquier unidad que no esté explícitamente "Inactivo", mismo
-  // criterio que ya usa inventario.html para sus contadores y badges.
+  // Activo = cualquier unidad que no esté explícitamente "Inactivo" o "Dado
+  // de baja", mismo criterio que ya usa inventario.html para sus
+  // contadores y badges.
+  const ESTADOS_NO_ASIGNABLES = new Set(["Inactivo", "Dado de baja"]);
   function activeEntities() {
-    return Object.values(entitiesById).filter(e => ((e.atributos || {}).estado) !== "Inactivo");
+    return Object.values(entitiesById).filter(e => !ESTADOS_NO_ASIGNABLES.has((e.atributos || {}).estado));
   }
 
   function vehiculoOptionsHtml(selectedEntityId) {
     // Incluye siempre la unidad ya asignada, aunque después se haya marcado
-    // Inactivo — si no, el <select> "pierde" la selección y muestra "sin
-    // asignar" mientras el badge de placa sigue mostrando el vehículo real.
+    // Inactivo/Dado de baja — si no, el <select> "pierde" la selección y
+    // muestra "sin asignar" mientras el badge de placa sigue mostrando el
+    // vehículo real.
     const opciones = activeEntities();
     const seleccionada = selectedEntityId && entitiesById[selectedEntityId];
     if (seleccionada && !opciones.some(e => e.id === selectedEntityId)) {
@@ -209,8 +212,8 @@
       .sort((a, b) => a.codigo.localeCompare(b.codigo))
       .map(e => {
         const a = e.atributos || {};
-        const inactivo = a.estado === "Inactivo" ? " (Inactivo)" : "";
-        const label = [e.codigo, [a.marca, a.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" — ") + inactivo;
+        const sufijo = ESTADOS_NO_ASIGNABLES.has(a.estado) ? ` (${a.estado})` : "";
+        const label = [e.codigo, [a.marca, a.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" — ") + sufijo;
         return `<option value="${e.id}" ${selectedEntityId === e.id ? "selected" : ""}>${esc(label)}</option>`;
       }).join("");
   }
