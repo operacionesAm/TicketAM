@@ -1,0 +1,11 @@
+{
+  "name": "ticketam-frontend-build",
+  "private": true,
+  "description": "Compila el CSS estatico de Tailwind que usan las paginas de frontend/tickets/. No es parte del build de Vercel (el CSS generado ya queda commiteado en tickets/assets/app.css) — se corre a mano solo cuando se agregan clases de Tailwind nuevas.",
+  "scripts": {
+    "build": "tailwindcss -i ./tailwind-input.css -o ../tickets/assets/app.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}
