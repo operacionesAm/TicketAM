@@ -163,6 +163,14 @@
     return (ticket.campos || {}).adjunto_path ? `<span class="text-xs" title="Tiene adjunto">📎</span>` : "";
   }
 
+  // Nombre de quien levantó el ticket + su departamento — las 6
+  // solicitudes de Talento AM siempre lo capturan (campo obligatorio).
+  function solicitanteLineHtml(ticket) {
+    const depto = (ticket.campos || {}).departamento_solicitante;
+    const sufijo = depto ? ` <span class="font-normal text-slate-400">· ${esc(depto)}</span>` : "";
+    return `${esc(ticket.solicitante_nombre)}${sufijo}`;
+  }
+
   function resumenTicket(ticket) {
     const c = ticket.campos || {};
     return c.descripcion || c.tipo_solicitud || c.nombre_curso || c.tipo_reporte || c.tipo_apoyo || "";
@@ -273,7 +281,7 @@
           <div class="font-mono text-[11px] font-bold text-slate-400">${ticket.folio}</div>
           ${confidencialBadgeHtml(ticket)}
         </div>
-        <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+        <div class="mt-1 text-sm font-bold text-brand-dark">${solicitanteLineHtml(ticket)}</div>
         <div class="mt-1 text-xs text-slate-500">${esc(resumen)}</div>
         <div class="mt-1.5 flex flex-wrap items-center gap-1.5">${slaBadgeHtml(ticket)}${adjuntoBadgeHtml(ticket)}</div>
         <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
@@ -345,7 +353,7 @@
             <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">${TIPO_ICONOS[tipoNombre(ticket)] || ""} ${esc(tipoNombre(ticket))}</span>
             ${confidencialBadgeHtml(ticket)}
           </div>
-          <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+          <div class="mt-1 text-sm font-bold text-brand-dark">${solicitanteLineHtml(ticket)}</div>
           <div class="mt-1 truncate text-xs text-slate-500">${esc(resumen)}</div>
           <div class="mt-1.5 flex flex-wrap items-center gap-1.5">${slaBadgeHtml(ticket)}${adjuntoBadgeHtml(ticket)}</div>
           <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
@@ -381,7 +389,7 @@
             <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">${TIPO_ICONOS[tipoNombre(ticket)] || ""} ${esc(tipoNombre(ticket))}</span>
             <span class="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">${esc(ticket.estado)}</span>
           </div>
-          <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+          <div class="mt-1 text-sm font-bold text-brand-dark">${solicitanteLineHtml(ticket)}</div>
           <div class="mt-1 truncate text-xs text-slate-500">${esc(resumen)}</div>
           <div class="mt-1 text-[11px] text-slate-400">Resuelto el ${formatDate(ticket.resolved_at)} · archivado hace ${diasArchivado} días</div>
         </div>
@@ -549,6 +557,7 @@
       folio: t.folio,
       tipo: tipoNombre(t),
       solicitante: t.solicitante_nombre,
+      departamento: (t.campos || {}).departamento_solicitante || "—",
       correo: t.solicitante_email,
       resumen: resumenTicket(t),
       estado: t.estado,
@@ -563,6 +572,7 @@
         { key: "folio", label: "Folio" },
         { key: "tipo", label: "Tipo" },
         { key: "solicitante", label: "Solicitante" },
+        { key: "departamento", label: "Departamento" },
         { key: "correo", label: "Correo" },
         { key: "resumen", label: "Descripción / detalle" },
         { key: "estado", label: "Estado" },

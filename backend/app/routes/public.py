@@ -31,6 +31,10 @@ public_bp = Blueprint("public", __name__)
 # tal cual, sin tocar su comportamiento.
 FOLIO_PREFIX_BY_SLUG = {"talento-am": "TKT-CH-"}
 
+# Mismo criterio que ENTIDAD_ESTADOS_NO_ASIGNABLES en app/routes/admin.py —
+# duplicado en vez de importado porque los dos módulos no dependen entre sí.
+ENTIDAD_ESTADOS_NO_ASIGNABLES = {"Inactivo", "Dado de baja"}
+
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -38,6 +42,25 @@ def now() -> str:
 
 def error(message: str, status: int):
     return jsonify({"detail": message}), status
+
+
+DEMO_TYPES_BY_ID = {t["id"]: t for t in (DEMO_TYPE_REPORTE, DEMO_TYPE_ASIGNACION, DEMO_TYPE_MANTENIMIENTO)}
+
+
+def campos_faltantes(campos_config, campos: dict) -> list[str]:
+    """Nombres (label) de los campos marcados required:true en
+    campos_config que llegaron vacíos en `campos`. Se corre después de
+    procesar foto/adjunto, así que un campo tipo "file" (p. ej. el
+    adjunto obligatorio de "Solicitud de Reclutamiento") ya tiene su
+    campos["adjunto_path"] puesto si el solicitante sí lo mandó."""
+    faltantes = []
+    for campo in campos_config or []:
+        if not campo.get("required"):
+            continue
+        valor = campos.get(campo["key"])
+        if valor is None or (isinstance(valor, str) and not valor.strip()):
+            faltantes.append(campo.get("label") or campo["key"])
+    return faltantes
 
 
 @public_bp.get("/api/departments/<slug>")
@@ -93,15 +116,22 @@ def create_ticket(slug: str):
                 return error("Vehículo no encontrado", 404)
         if ticket_type_id in {DEMO_TYPE_REPORTE["id"], DEMO_TYPE_MANTENIMIENTO["id"]} and not entity_id:
             return error("Este tipo de ticket debe tener un vehículo asociado", 400)
+
+        tipo = DEMO_TYPES_BY_ID.get(ticket_type_id)
+        faltantes = campos_faltantes(tipo.get("campos_config") if tipo else None, campos)
+        if faltantes:
+            return error(f"Faltan datos obligatorios: {', '.join(faltantes)}", 400)
+
         # Una "Solicitud de vehículo" que ya trae entity_id vino de la página
         # del operador (frontend/tickets/operador/, la única que deja elegir
         # o escanear la unidad para "Pedir un vehículo") — se autoasigna sin
-        # pasar por revisión del admin, salvo que el vehículo esté Inactivo
-        # (igual que la asignación manual del admin, ver app/routes/admin.py).
-        # El colaborador común (frontend/tickets/usuario/) nunca manda
-        # entity_id en este tipo de ticket. Ver create_ticket() para el mismo
-        # criterio en el branch de Supabase.
-        vehiculo_activo = bool(entity) and (entity.get("atributos") or {}).get("estado") != "Inactivo"
+        # pasar por revisión del admin, salvo que el vehículo esté
+        # Inactivo/Dado de baja (igual que la asignación manual del admin,
+        # ver app/routes/admin.py). El colaborador común
+        # (frontend/tickets/usuario/) nunca manda entity_id en este tipo de
+        # ticket. Ver create_ticket() para el mismo criterio en el branch de
+        # Supabase.
+        vehiculo_activo = bool(entity) and (entity.get("atributos") or {}).get("estado") not in ENTIDAD_ESTADOS_NO_ASIGNABLES
         estado_inicial = "Asignado" if (ticket_type_id == DEMO_TYPE_ASIGNACION["id"] and entity_id and vehiculo_activo) else "Abierto"
         ticket = {
             "id": str(uuid4()),
@@ -131,7 +161,7 @@ def create_ticket(slug: str):
         return error("Departamento no encontrado", 404)
     department_id = department_result.data["id"]
 
-    type_result = supabase.table("ticket_types").select("name").eq("id", ticket_type_id).eq("department_id", department_id).single().execute()
+    type_result = supabase.table("ticket_types").select("name, campos_config").eq("id", ticket_type_id).eq("department_id", department_id).single().execute()
     if not type_result.data:
         return error("Tipo de ticket no encontrado", 404)
     if type_result.data["name"] in {"Reporte de falla", "Ticket de Mantenimiento"} and not entity_id:
@@ -158,13 +188,18 @@ def create_ticket(slug: str):
         except Exception as exc:
             print(f"[attachments] No se pudo subir el adjunto: {exc}")
 
+    faltantes = campos_faltantes(type_result.data.get("campos_config"), campos)
+    if faltantes:
+        return error(f"Faltan datos obligatorios: {', '.join(faltantes)}", 400)
+
     # Una "Solicitud de vehículo" que ya trae entity_id vino de la página del
     # operador (frontend/tickets/operador/, la única que deja elegir o
     # escanear la unidad para "Pedir un vehículo") — se autoasigna sin pasar
-    # por revisión de Carlos, salvo que el vehículo esté Inactivo (igual que
-    # la asignación manual del admin en app/routes/admin.py). El colaborador
-    # común (frontend/tickets/usuario/) nunca manda entity_id en este tipo.
-    vehiculo_activo = bool(entity) and (entity.get("atributos") or {}).get("estado") != "Inactivo"
+    # por revisión de Carlos, salvo que el vehículo esté Inactivo/Dado de
+    # baja (igual que la asignación manual del admin en
+    # app/routes/admin.py). El colaborador común
+    # (frontend/tickets/usuario/) nunca manda entity_id en este tipo.
+    vehiculo_activo = bool(entity) and (entity.get("atributos") or {}).get("estado") not in ENTIDAD_ESTADOS_NO_ASIGNABLES
     estado_inicial = "Asignado" if (type_result.data["name"] == "Solicitud de vehículo" and entity_id and vehiculo_activo) else "Abierto"
 
     record = {

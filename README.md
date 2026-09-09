@@ -201,9 +201,11 @@ servicios de moto próximos/vencidos), gráficas (tickets por tipo de incidente,
 inventario, vehículos con más reportes, reportes por mes) y tablas de distribución — todo
 calculado en vivo sobre los tickets/vehículos del departamento.
 
-- **Tickets** (kanban por tipo, Lista y Archivo — ver abajo). Clasificar un reporte
-  (tipo de incidente + prioridad), mover de estado (drag & drop o select — valida contra
-  los estados del tipo), asignar vehículo a una "Solicitud de vehículo" (bloquea unidades
+- **Tickets** (kanban por tipo, Lista y Archivo — ver abajo). Cada tarjeta muestra el
+  nombre de quien levantó el ticket junto con su departamento (`campos.departamento_solicitante`,
+  también en el detalle y en el export a Excel). Clasificar un reporte (tipo de
+  incidente + prioridad), mover de estado (drag & drop o select — valida contra los
+  estados del tipo), asignar vehículo a una "Solicitud de vehículo" (bloquea unidades
   `Inactivo`/`Dado de baja`), asignar responsable (texto libre), dejar observaciones (con
   opción de notificar por correo), ver la foto adjunta.
 - **Inventario**: alta, edición y generación/impresión de QR de vehículos — ver
@@ -560,12 +562,18 @@ Documentadas a propósito para quien retome esto después:
 - `GET /api/departments/{slug}` — tipos de ticket y catálogo de entidades para armar el
   formulario. No incluye tickets.
 - `POST /api/departments/{slug}/tickets` — crea un ticket y su evento `creado`. Rechaza
-  (400) un "Reporte de falla"/"Ticket de Mantenimiento" sin `entity_id`, o un `entity_id`/
-  `ticket_type_id` que no pertenezca a ese departamento. Acepta `foto_base64` (solo
-  "Reporte de falla", se comprime y sube a `reportes-fotos`) y/o `adjunto_base64` +
-  `adjunto_nombre` (cualquier tipo, sube tal cual a `ch-adjuntos`, valida extensión y
-  tamaño ≤5 MB). El folio usa `TKT-CH-` para `talento-am`, `TKT-` (default de la tabla)
-  para el resto.
+  (400) un "Reporte de falla"/"Ticket de Mantenimiento" sin `entity_id`, un `entity_id`/
+  `ticket_type_id` que no pertenezca a ese departamento, o un `campos` incompleto: cada
+  campo marcado `required: true` en el `campos_config` de ese tipo de ticket (por
+  ejemplo `departamento_solicitante` en Flota, o el adjunto de autorización en
+  "Solicitud de Reclutamiento" de Talento AM) se valida en el servidor, no solo en el
+  formulario — así una llamada directa a la API sin pasar por la pantalla no puede
+  colar un ticket con datos a medias (`campos_faltantes()` en `public.py`). Acepta
+  `foto_base64` (solo "Reporte de falla", se comprime y sube a `reportes-fotos`) y/o
+  `adjunto_base64` + `adjunto_nombre` (cualquier tipo, sube tal cual a `ch-adjuntos`,
+  valida extensión y tamaño ≤5 MB) **antes** de esa validación, para que un campo `file`
+  obligatorio cuente como lleno. El folio usa `TKT-CH-` para `talento-am`, `TKT-`
+  (default de la tabla) para el resto.
 
 ### Admin de departamento (requiere sesión — `session["department_id"]`)
 

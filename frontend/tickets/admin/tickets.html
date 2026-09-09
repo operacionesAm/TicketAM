@@ -281,6 +281,15 @@
     return `<span class="text-xs" title="Tiene foto adjunta">📷</span>`;
   }
 
+  // Nombre de quien levantó el ticket + su departamento (si el tipo de
+  // ticket lo captura) — para que el admin sepa de qué área viene sin
+  // tener que abrir el detalle.
+  function solicitanteLineHtml(ticket, campos) {
+    const depto = campos.departamento_solicitante;
+    const sufijo = depto ? ` <span class="font-normal text-slate-400">· ${esc(depto)}</span>` : "";
+    return `${esc(ticket.solicitante_nombre)}${sufijo}`;
+  }
+
   function switchTicketType(type) {
     currentTicketType = type;
     listStatusFilter = "Todos";
@@ -427,7 +436,7 @@
           <div class="font-mono text-[11px] font-bold text-slate-400">${ticket.folio}</div>
           ${prioridadBadge}
         </div>
-        <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+        <div class="mt-1 text-sm font-bold text-brand-dark">${solicitanteLineHtml(ticket, campos)}</div>
         <div class="mt-1 text-xs text-slate-500">${esc(resumen)}</div>
         <div class="mt-1.5 flex items-center gap-1.5">${vehiculoBadgeHtml(ticket)}${fotoBadgeHtml(ticket)}</div>
         <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
@@ -531,7 +540,7 @@
             ${tipoBadgeHtml(ticket)}
             ${prioridadBadge}
           </div>
-          <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+          <div class="mt-1 text-sm font-bold text-brand-dark">${solicitanteLineHtml(ticket, campos)}</div>
           <div class="mt-1 truncate text-xs text-slate-500">${esc(resumen)}</div>
           <div class="mt-1.5 flex items-center gap-1.5">${vehiculoBadgeHtml(ticket)}${fotoBadgeHtml(ticket)}</div>
           <div class="mt-1 text-[11px] text-slate-400">${formatDate(ticket.created_at)}</div>
@@ -579,7 +588,7 @@
             ${tipoBadgeHtml(ticket)}
             <span class="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">${ticket.estado}</span>
           </div>
-          <div class="mt-1 text-sm font-bold text-brand-dark">${esc(ticket.solicitante_nombre)}</div>
+          <div class="mt-1 text-sm font-bold text-brand-dark">${solicitanteLineHtml(ticket, campos)}</div>
           <div class="mt-1 truncate text-xs text-slate-500">${esc(resumen)}</div>
           <div class="mt-1.5 flex items-center gap-1.5">${vehiculoBadgeHtml(ticket)}${fotoBadgeHtml(ticket)}</div>
           <div class="mt-1 text-[11px] text-slate-400">Resuelto el ${formatDate(ticket.resolved_at)} · archivado hace ${diasArchivado} días</div>
@@ -602,6 +611,7 @@
     const info = [
       ["Fecha/hora", formatDate(ticket.created_at)],
       ["Operador / solicitante", ticket.solicitante_nombre],
+      ["Departamento", campos.departamento_solicitante || "—"],
       ["Correo", ticket.solicitante_email],
       ["Número de nómina", campos.numero_nomina || "—"],
       ...(campos.pieza_refaccion
@@ -766,6 +776,7 @@
         folio: t.folio,
         tipo: tipoNombre(t),
         solicitante: t.solicitante_nombre,
+        departamento: campos.departamento_solicitante || "—",
         correo: t.solicitante_email,
         vehiculo: vehiculo ? vehiculo.placa : "—",
         resumen: campos.descripcion || campos.proposito || campos.pieza_refaccion || "",
@@ -784,6 +795,7 @@
         { key: "folio", label: "Folio" },
         { key: "tipo", label: "Tipo" },
         { key: "solicitante", label: "Solicitante" },
+        { key: "departamento", label: "Departamento" },
         { key: "correo", label: "Correo" },
         { key: "vehiculo", label: "Vehículo" },
         { key: "resumen", label: "Descripción / detalle" },
